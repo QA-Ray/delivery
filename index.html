@@ -517,24 +517,19 @@
     0%, 100% { transform: translateX(-50%) translateY(0) rotate(-3deg); }
     50%      { transform: translateX(-50%) translateY(-3px) rotate(3deg); }
   }
-  .lb-champion .lb-avatar {
-    width: 52px; height: 52px;
+  .lb-champion .lb-name-tag {
+    display: inline-block;
     margin: 0 auto var(--s-2);
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 22px;
-    font-weight: 600;
-    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.75), 0 4px 10px rgba(120, 80, 20, 0.18);
-  }
-  .lb-champion .lb-cname {
-    font-size: var(--t-md);
+    padding: 8px 18px;
+    border-radius: var(--r-pill);
+    font-size: 20px;
     font-weight: 700;
-    color: #5A4317;
-    margin-bottom: 4px;
-    line-height: 1.2;
-    word-break: break-all;
+    line-height: 1.1;
+    max-width: 90%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.75), 0 4px 10px rgba(120, 80, 20, 0.18);
   }
   .lb-champion .lb-ccount {
     font-family: var(--font-num);
@@ -585,25 +580,19 @@
   }
   .silver .lb-medal { color: #6E7A87; }
   .bronze .lb-medal { color: #A06A33; }
-  .lb-runner .lb-avatar {
-    width: 36px; height: 36px;
-    border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 15px;
-    font-weight: 600;
-    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.7);
-  }
-  .lb-runner .lb-rname {
+  .lb-runner .lb-name-tag {
+    display: inline-block;
+    padding: 5px 12px;
+    border-radius: var(--r-pill);
     font-size: var(--t-sm);
     font-weight: 600;
+    line-height: 1.1;
     max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    padding: 0 4px;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.7);
   }
-  .silver .lb-rname { color: #3F4A57; }
-  .bronze .lb-rname { color: #5C3A18; }
   .lb-runner .lb-rcount {
     font-family: var(--font-num);
     font-size: var(--t-xs);
@@ -635,7 +624,7 @@
   .lb-row {
     position: relative;
     display: grid;
-    grid-template-columns: 22px 28px 1fr auto;
+    grid-template-columns: 22px 1fr auto;
     align-items: center;
     gap: var(--s-2);
     padding: 7px 10px;
@@ -666,23 +655,18 @@
     line-height: 1;
     font-weight: 500;
   }
-  .lb-avatar-sm {
-    width: 22px; height: 22px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 11px;
-    font-weight: 600;
-    box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.6);
-  }
-  .lb-name {
+  .lb-name-tag-sm {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: var(--r-pill);
     font-size: var(--t-sm);
-    color: var(--ink-2);
+    font-weight: 600;
+    line-height: 1.2;
+    max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-weight: 500;
+    justify-self: start;
   }
   .lb-count {
     font-family: var(--font-num);
@@ -1417,13 +1401,11 @@ function copyWinners() {
 }
 
 function avatarFor(name) {
-  const initial = (name || '?').trim()[0]?.toUpperCase() || '?';
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
   const hues = [12, 32, 52, 142, 192, 218, 262, 292, 332];
   const hue = hues[Math.abs(h) % hues.length];
   return {
-    initial,
     bg:  `hsl(${hue} 62% 86%)`,
     ink: `hsl(${hue} 42% 32%)`,
   };
@@ -1453,8 +1435,7 @@ function renderLeaderboard() {
     const av = avatarFor(name);
     html += `
       <div class="lb-champion">
-        <div class="lb-avatar" style="background:${av.bg};color:${av.ink};">${escapeHtml(av.initial)}</div>
-        <div class="lb-cname">${escapeHtml(name)}</div>
+        <span class="lb-name-tag" style="background:${av.bg};color:${av.ink};">${escapeHtml(name)}</span>
         <div class="lb-ccount"><strong>${count}</strong>次</div>
       </div>
     `;
@@ -1472,8 +1453,7 @@ function renderLeaderboard() {
       html += `
         <div class="lb-runner ${tier}">
           <span class="lb-medal">${medal}</span>
-          <div class="lb-avatar" style="background:${av.bg};color:${av.ink};">${escapeHtml(av.initial)}</div>
-          <div class="lb-rname">${escapeHtml(name)}</div>
+          <span class="lb-name-tag" style="background:${av.bg};color:${av.ink};">${escapeHtml(name)}</span>
           <div class="lb-rcount">${count} 次</div>
         </div>
       `;
@@ -1498,8 +1478,7 @@ function renderLeaderboard() {
       html += `
         <li class="lb-row" style="--bar:${pct}%; animation-delay:${i * 25}ms;">
           <span class="lb-rank">${i + 4}</span>
-          <span class="lb-avatar-sm" style="background:${av.bg};color:${av.ink};">${escapeHtml(av.initial)}</span>
-          <span class="lb-name">${escapeHtml(name)}</span>
+          <span class="lb-name-tag-sm" style="background:${av.bg};color:${av.ink};">${escapeHtml(name)}</span>
           <span class="lb-count">${count}<span class="unit">次</span></span>
         </li>
       `;
