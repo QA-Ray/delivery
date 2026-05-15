@@ -97,8 +97,21 @@
   .container {
     position: relative;
     z-index: 1;
-    max-width: 580px;
+    max-width: 920px;
     margin: 0 auto;
+  }
+
+  /* main two-column area: hero + leaderboard */
+  .main-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: var(--s-5);
+    align-items: start;
+    margin-bottom: var(--s-6);
+  }
+  @media (max-width: 760px) {
+    .container { max-width: 580px; }
+    .main-grid { grid-template-columns: 1fr; gap: var(--s-4); }
   }
 
   /* ========== Header ========== */
@@ -429,6 +442,134 @@
     background: var(--leaf);
     border-color: var(--leaf);
     color: #fff;
+  }
+
+  /* ========== Leaderboard ========== */
+  .leaderboard {
+    background: var(--surface);
+    border-radius: var(--r-xl);
+    padding: var(--s-6) var(--s-5);
+    box-shadow: var(--shadow-2);
+    position: relative;
+    overflow: hidden;
+  }
+  .leaderboard::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 6px;
+    background: linear-gradient(90deg, var(--leaf) 0%, #5a8059 50%, var(--leaf) 100%);
+    opacity: 0.45;
+  }
+  .lb-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: var(--s-4);
+  }
+  .lb-title {
+    font-family: var(--font-serif);
+    font-size: var(--t-lg);
+    font-weight: 500;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+  }
+  .lb-title .em {
+    color: var(--leaf);
+    font-style: italic;
+  }
+  .lb-sub {
+    font-family: var(--font-num);
+    font-size: var(--t-xs);
+    color: var(--ink-mute);
+    letter-spacing: 0.06em;
+  }
+  .lb-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    max-height: 420px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-right: 4px;
+    mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%);
+  }
+  .lb-list::-webkit-scrollbar { width: 4px; }
+  .lb-list::-webkit-scrollbar-thumb { background: var(--line); border-radius: 2px; }
+  .lb-row {
+    position: relative;
+    display: grid;
+    grid-template-columns: 28px 1fr auto;
+    align-items: center;
+    gap: var(--s-3);
+    padding: 9px 10px;
+    border-radius: var(--r-md);
+    overflow: hidden;
+    animation: lbEnter 0.5s var(--ease-out) both;
+  }
+  .lb-row::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: var(--bar, 0%);
+    background: var(--accent-tint);
+    border-radius: var(--r-md);
+    z-index: 0;
+    transition: width 0.7s var(--ease-out);
+  }
+  .lb-row > * { position: relative; z-index: 1; }
+  .lb-row.lb-top::before { background: var(--accent-soft); }
+  @keyframes lbEnter {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .lb-rank {
+    font-family: var(--font-serif);
+    font-size: 18px;
+    color: var(--ink-3);
+    text-align: center;
+    line-height: 1;
+    font-weight: 500;
+  }
+  .lb-rank.r1 { color: var(--accent-deep); font-size: 22px; }
+  .lb-rank.r2 { color: var(--accent); font-size: 20px; }
+  .lb-rank.r3 { color: #B0824A; font-size: 20px; }
+  .lb-rank.rN {
+    font-family: var(--font-num);
+    font-size: 13px;
+    color: var(--ink-mute);
+  }
+  .lb-name {
+    font-size: var(--t-base);
+    color: var(--ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+  }
+  .lb-top .lb-name { font-weight: 600; }
+  .lb-count {
+    font-family: var(--font-num);
+    font-size: var(--t-sm);
+    color: var(--ink-2);
+    font-weight: 600;
+    min-width: 20px;
+    text-align: right;
+  }
+  .lb-count .unit {
+    font-size: 10px;
+    color: var(--ink-mute);
+    font-weight: 400;
+    margin-left: 2px;
+  }
+  .lb-empty {
+    text-align: center;
+    color: var(--ink-mute);
+    font-size: var(--t-sm);
+    padding: var(--s-8) 0;
   }
 
   /* ========== Disclosure Sections ========== */
@@ -769,32 +910,42 @@
     <p class="sub">公平随机 · 优先轮到近期没去过的同事</p>
   </header>
 
-  <!-- Hero: Today's Draw -->
-  <section class="hero">
-    <div class="winners cols-4" id="winners">
-      <!-- tickets injected here -->
-    </div>
-
-    <div class="draw-zone">
-      <button class="draw-btn" id="drawBtn">
-        <span class="dice">🎲</span>
-        <span id="drawLabel">开 始 抽 签</span>
-      </button>
-      <div class="draw-meta">
-        共 <span class="num" id="metaTotal">0</span> 人
-        <span class="dot">·</span>
-        抽 <span class="num" id="metaPickN">4</span> 人
+  <!-- Hero + Leaderboard -->
+  <div class="main-grid">
+    <section class="hero">
+      <div class="winners cols-4" id="winners">
+        <!-- tickets injected here -->
       </div>
-    </div>
 
-    <div class="controls">
-      <div class="ctrl">
-        <span>人数</span>
-        <input type="number" id="pickCount" value="4" min="1" max="50">
+      <div class="draw-zone">
+        <button class="draw-btn" id="drawBtn">
+          <span class="dice">🎲</span>
+          <span id="drawLabel">开 始 抽 签</span>
+        </button>
+        <div class="draw-meta">
+          共 <span class="num" id="metaTotal">0</span> 人
+          <span class="dot">·</span>
+          抽 <span class="num" id="metaPickN">4</span> 人
+        </div>
       </div>
-      <button class="btn btn-ghost" id="copyBtn" style="display:none;">复制结果</button>
-    </div>
-  </section>
+
+      <div class="controls">
+        <div class="ctrl">
+          <span>人数</span>
+          <input type="number" id="pickCount" value="4" min="1" max="50">
+        </div>
+        <button class="btn btn-ghost" id="copyBtn" style="display:none;">复制结果</button>
+      </div>
+    </section>
+
+    <aside class="leaderboard">
+      <div class="lb-head">
+        <h2 class="lb-title">取饭 <span class="em">榜</span></h2>
+        <span class="lb-sub">最近 20 次</span>
+      </div>
+      <ol class="lb-list" id="leaderboard"></ol>
+    </aside>
+  </div>
 
   <!-- Employees -->
   <section class="section" id="rosterSection">
@@ -1132,7 +1283,48 @@ function copyWinners() {
   navigator.clipboard.writeText(text).then(() => showToast('已复制到剪贴板'));
 }
 
+function renderLeaderboard() {
+  const el = $('leaderboard');
+  if (!el) return;
+  if (history.length === 0) {
+    el.innerHTML = '<li class="lb-empty">等第一次抽签</li>';
+    return;
+  }
+  const counts = {};
+  history.forEach(entry => {
+    entry.names.forEach(n => { counts[n] = (counts[n] || 0) + 1; });
+  });
+  const sorted = Object.entries(counts).sort((a, b) => {
+    if (b[1] !== a[1]) return b[1] - a[1];
+    return a[0].localeCompare(b[0]);
+  });
+  const max = sorted[0][1];
+  const rankSymbols = ['①','②','③'];
+  el.innerHTML = sorted.map(([name, count], i) => {
+    const pct = Math.round((count / max) * 100);
+    const isTop = i < 3;
+    const rankClass = i === 0 ? 'r1' : i === 1 ? 'r2' : i === 2 ? 'r3' : 'rN';
+    const symbol = rankSymbols[i] || (i + 1);
+    return `
+      <li class="lb-row${isTop ? ' lb-top' : ''}" style="--bar:${pct}%; animation-delay:${i * 30}ms;">
+        <span class="lb-rank ${rankClass}">${symbol}</span>
+        <span class="lb-name">${escapeHtml(name)}</span>
+        <span class="lb-count">${count}<span class="unit">次</span></span>
+      </li>
+    `;
+  }).join('');
+  // trigger bar fill after insert (next frame so transition runs)
+  requestAnimationFrame(() => {
+    el.querySelectorAll('.lb-row').forEach(row => {
+      const pct = row.style.getPropertyValue('--bar');
+      row.style.setProperty('--bar', '0%');
+      requestAnimationFrame(() => row.style.setProperty('--bar', pct));
+    });
+  });
+}
+
 function renderHistory() {
+  renderLeaderboard();
   const el = $('history');
   $('historyCount').textContent = history.length;
   if (history.length === 0) {
