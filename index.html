@@ -101,7 +101,7 @@
     margin: 0 auto;
   }
 
-  /* main two-column area: hero + leaderboard */
+  /* main two-column area: hero+lastdraw stack on left, leaderboard on right */
   .main-grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 320px;
@@ -109,9 +109,86 @@
     align-items: start;
     margin-bottom: var(--s-6);
   }
+  .main-left {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-5);
+  }
   @media (max-width: 760px) {
     .container { max-width: 580px; }
     .main-grid { grid-template-columns: 1fr; gap: var(--s-4); }
+    .main-left { gap: var(--s-4); }
+  }
+
+  /* ========== Last Draw inline card ========== */
+  .last-draw {
+    background: var(--surface);
+    border-radius: var(--r-lg);
+    padding: var(--s-4) var(--s-5);
+    box-shadow: var(--shadow-1);
+    animation: enter 0.55s var(--ease-out) 0.15s both;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 96px;
+  }
+  .ld-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: var(--s-3);
+  }
+  .ld-label {
+    font-size: var(--t-sm);
+    color: var(--ink-2);
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .ld-label::before {
+    content: "";
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+  .ld-meta {
+    font-family: var(--font-num);
+    font-size: 11px;
+    color: var(--ink-mute);
+    letter-spacing: 0.04em;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .ld-meta img {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+  .ld-names {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .ld-name {
+    padding: 5px 14px;
+    border-radius: var(--r-pill);
+    background: var(--surface-soft);
+    font-size: var(--t-sm);
+    color: var(--ink);
+    font-weight: 500;
+    border: 1px solid var(--line-soft);
+  }
+  .ld-empty {
+    text-align: center;
+    color: var(--ink-mute);
+    font-size: var(--t-sm);
+    padding: var(--s-3) 0;
   }
 
   /* ========== Header ========== */
@@ -362,8 +439,11 @@
   .draw-btn:hover .dice {
     transform: rotate(-15deg);
   }
-  .draw-btn:disabled .dice {
+  .draw-btn:disabled:not(.locked) .dice {
     animation: spin 0.6s linear infinite;
+  }
+  .draw-btn.locked .dice {
+    animation: none;
   }
   @keyframes spin {
     to { transform: rotate(360deg); }
@@ -382,6 +462,25 @@
   .draw-meta .num {
     color: var(--ink);
     font-weight: 600;
+  }
+
+  .draw-unauth {
+    margin-top: var(--s-3);
+    padding: 9px 14px;
+    background: var(--accent-tint);
+    border: 1px dashed var(--accent);
+    border-radius: var(--r-md);
+    text-align: center;
+    font-size: var(--t-xs);
+    color: var(--accent-deep);
+    line-height: 1.5;
+    animation: enter 0.3s var(--ease-out);
+  }
+  .draw-unauth strong {
+    font-family: var(--font-num);
+    font-weight: 600;
+    color: var(--accent-deep);
+    margin: 0 2px;
   }
 
   /* ========== Quick Controls (under hero) ========== */
@@ -1036,6 +1135,7 @@
 
   <!-- Hero + Leaderboard -->
   <div class="main-grid">
+    <div class="main-left">
     <section class="hero">
       <div class="winners cols-4" id="winners">
         <!-- tickets injected here -->
@@ -1051,6 +1151,7 @@
           <span class="dot">·</span>
           抽 <span class="num" id="metaPickN">4</span> 人
         </div>
+        <div class="draw-unauth" id="drawUnauth" style="display:none;"></div>
       </div>
 
       <div class="controls">
@@ -1061,6 +1162,17 @@
         <button class="btn btn-ghost" id="copyBtn" style="display:none;">复制结果</button>
       </div>
     </section>
+
+    <section class="last-draw" id="lastDrawCard">
+      <div class="ld-head">
+        <span class="ld-label">上次抽签</span>
+        <span class="ld-meta" id="ldMeta">—</span>
+      </div>
+      <div class="ld-names" id="ldNames">
+        <span class="ld-empty">还没有记录</span>
+      </div>
+    </section>
+    </div>
 
     <aside class="leaderboard">
       <div class="lb-head">
@@ -1120,6 +1232,7 @@ let employees = (window.EMPLOYEES || []).slice();
 let history = [];
 let sb = null;
 let currentUser = null;
+let isAuthorized = false;
 
 const $ = id => document.getElementById(id);
 
@@ -1150,10 +1263,64 @@ async function initAuth() {
   const { data: { session } } = await sb.auth.getSession();
   currentUser = session?.user || null;
   renderAuth();
+  await checkAuthorization();
   sb.auth.onAuthStateChange((_event, session) => {
     currentUser = session?.user || null;
     renderAuth();
+    checkAuthorization();
   });
+}
+
+async function checkAuthorization() {
+  if (!currentUser || !sb) {
+    isAuthorized = false;
+    updateAuthGate();
+    return;
+  }
+  try {
+    const { data, error } = await sb
+      .from('allowed_users')
+      .select('email')
+      .eq('email', currentUser.email)
+      .maybeSingle();
+    isAuthorized = !!data && !error;
+  } catch (e) {
+    isAuthorized = false;
+  }
+  updateAuthGate();
+}
+
+function updateAuthGate() {
+  const btn = $('drawBtn');
+  const label = $('drawLabel');
+  const dice = btn.querySelector('.dice');
+  const unauth = $('drawUnauth');
+
+  // when not logged in: button enabled (clicking triggers signIn)
+  if (!currentUser) {
+    btn.disabled = false;
+    btn.classList.remove('locked');
+    label.textContent = '开 始 抽 签';
+    if (dice) dice.textContent = '🎲';
+    unauth.style.display = 'none';
+    return;
+  }
+  // logged in but not on whitelist
+  if (!isAuthorized) {
+    btn.disabled = true;
+    btn.classList.add('locked');
+    label.textContent = '账 号 未 授 权';
+    if (dice) dice.textContent = '🔒';
+    unauth.innerHTML = `账号 <strong>${escapeHtml(currentUser.email)}</strong> 不在白名单 · 请联系管理员添加`;
+    unauth.style.display = 'block';
+    return;
+  }
+  // authorized
+  btn.disabled = false;
+  btn.classList.remove('locked');
+  label.textContent = '开 始 抽 签';
+  if (dice) dice.textContent = '🎲';
+  unauth.style.display = 'none';
 }
 
 function renderAuth() {
@@ -1272,6 +1439,10 @@ function draw() {
   if (!currentUser) {
     showToast('请先用 Google 登录');
     signIn();
+    return;
+  }
+  if (!isAuthorized) {
+    showToast('账号未授权，无法抽签');
     return;
   }
   if (employees.length === 0) {
@@ -1508,8 +1679,27 @@ function renderLeaderboard() {
   });
 }
 
+function renderLastDraw() {
+  const namesEl = $('ldNames');
+  const metaEl = $('ldMeta');
+  if (!namesEl || !metaEl) return;
+  if (!history || history.length === 0) {
+    namesEl.innerHTML = '<span class="ld-empty">还没有记录，点上面的按钮开签吧</span>';
+    metaEl.textContent = '—';
+    return;
+  }
+  const last = history[0];
+  const d = new Date(last.timestamp);
+  const date = `${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  metaEl.innerHTML = last.drawn_by_avatar
+    ? `<img src="${escapeHtml(last.drawn_by_avatar)}" alt=""> ${escapeHtml(last.drawn_by_name || '匿名')} · ${date}`
+    : `${escapeHtml(last.drawn_by_name || '匿名')} · ${date}`;
+  namesEl.innerHTML = last.names.map(n => `<span class="ld-name">${escapeHtml(n)}</span>`).join('');
+}
+
 function renderHistory() {
   renderLeaderboard();
+  renderLastDraw();
   const el = $('history');
   $('historyCount').textContent = history.length;
   if (history.length === 0) {
