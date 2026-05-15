@@ -1,0 +1,1027 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>每日取饭 · Daily Meal Run</title>
+<style>
+  /* ========== Design Tokens ========== */
+  :root {
+    /* Color — warm paper system */
+    --bg:            #FBF7F0;
+    --bg-grain:     rgba(31, 27, 22, 0.015);
+    --surface:       #FFFFFF;
+    --surface-soft:  #F5EFE4;
+    --surface-sunk:  #F0E9DA;
+
+    --ink:           #1F1B16;
+    --ink-2:         #4A4339;
+    --ink-3:         #8A8175;
+    --ink-mute:      #B8B0A1;
+    --line:          #E8DFCB;
+    --line-soft:     #F0E8D5;
+
+    --accent:        #D9663D;   /* terracotta — kraft box */
+    --accent-deep:   #B04E28;
+    --accent-soft:   #FBE8DC;
+    --accent-tint:   #FDF3EB;
+
+    --leaf:          #3A5A40;   /* secondary accent */
+    --leaf-soft:     #E6EEE7;
+
+    /* Type scale */
+    --font-zh: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    --font-en: ui-sans-serif, -apple-system, "SF Pro Text", "Inter", system-ui, sans-serif;
+    --font-num: ui-monospace, "SF Mono", "JetBrains Mono", "Menlo", monospace;
+    --font-serif: "Cormorant Garamond", "Source Han Serif SC", "Songti SC", Georgia, serif;
+
+    --t-xs:   11px;
+    --t-sm:   13px;
+    --t-base: 15px;
+    --t-md:   17px;
+    --t-lg:   22px;
+    --t-xl:   32px;
+    --t-2xl:  44px;
+
+    /* Spacing — 4px base */
+    --s-1: 4px;   --s-2: 8px;   --s-3: 12px;
+    --s-4: 16px;  --s-5: 20px;  --s-6: 24px;
+    --s-8: 32px;  --s-10: 40px; --s-12: 48px;
+
+    /* Radius */
+    --r-sm: 6px;
+    --r-md: 10px;
+    --r-lg: 16px;
+    --r-xl: 22px;
+    --r-pill: 999px;
+
+    /* Elevation */
+    --shadow-1: 0 1px 0 rgba(31, 27, 22, 0.04), 0 2px 4px rgba(31, 27, 22, 0.04);
+    --shadow-2: 0 4px 14px rgba(31, 27, 22, 0.06), 0 1px 0 rgba(31, 27, 22, 0.03);
+    --shadow-3: 0 12px 32px rgba(217, 102, 61, 0.18), 0 2px 6px rgba(217, 102, 61, 0.10);
+    --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+
+    /* Motion */
+    --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    --ease-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  /* ========== Reset & Base ========== */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: var(--font-en), var(--font-zh);
+    font-size: var(--t-base);
+    line-height: 1.55;
+    color: var(--ink);
+    background-color: var(--bg);
+    background-image:
+      radial-gradient(circle at 20% 0%, rgba(217, 102, 61, 0.04), transparent 40%),
+      radial-gradient(circle at 80% 100%, rgba(58, 90, 64, 0.03), transparent 40%);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    padding: var(--s-8) var(--s-5);
+  }
+
+  /* paper grain */
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background-image:
+      repeating-linear-gradient(45deg, var(--bg-grain) 0 1px, transparent 1px 4px);
+    opacity: 0.6;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 580px;
+    margin: 0 auto;
+  }
+
+  /* ========== Header ========== */
+  .masthead {
+    text-align: center;
+    margin-bottom: var(--s-10);
+  }
+  .masthead .date {
+    font-family: var(--font-num);
+    font-size: var(--t-xs);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: var(--s-3);
+  }
+  .masthead h1 {
+    font-family: var(--font-serif);
+    font-size: var(--t-2xl);
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    line-height: 1.1;
+    color: var(--ink);
+  }
+  .masthead h1 .em {
+    color: var(--accent);
+    font-style: italic;
+  }
+  .masthead .sub {
+    margin-top: var(--s-3);
+    font-size: var(--t-sm);
+    color: var(--ink-3);
+  }
+
+  /* ========== Hero Draw Card ========== */
+  .hero {
+    background: var(--surface);
+    border-radius: var(--r-xl);
+    padding: var(--s-8) var(--s-6) var(--s-6);
+    box-shadow: var(--shadow-2);
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 6px;
+    background: linear-gradient(90deg, var(--accent) 0%, #E68660 50%, var(--accent) 100%);
+  }
+  /* perforated edge top */
+  .hero::after {
+    content: "";
+    position: absolute;
+    top: 14px;
+    left: 0; right: 0;
+    height: 6px;
+    background-image: radial-gradient(circle at 6px 3px, var(--bg) 2.5px, transparent 3px);
+    background-size: 14px 6px;
+    background-repeat: repeat-x;
+    opacity: 0.5;
+  }
+
+  /* ========== Winner Tickets ========== */
+  .winners {
+    display: grid;
+    gap: var(--s-3);
+    margin: var(--s-5) 0 var(--s-6);
+    min-height: 132px;
+  }
+  .winners.cols-2 { grid-template-columns: repeat(2, 1fr); }
+  .winners.cols-3 { grid-template-columns: repeat(3, 1fr); }
+  .winners.cols-4 { grid-template-columns: repeat(4, 1fr); }
+  .winners.cols-5 { grid-template-columns: repeat(5, 1fr); }
+  @media (max-width: 480px) {
+    .winners.cols-4, .winners.cols-5 { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  .ticket {
+    aspect-ratio: 3 / 4;
+    background: var(--surface-soft);
+    border-radius: var(--r-md);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--s-3) var(--s-2);
+    position: relative;
+    box-shadow: var(--shadow-1), var(--shadow-inset);
+    overflow: hidden;
+  }
+  .ticket .slot {
+    font-family: var(--font-num);
+    font-size: 10px;
+    color: var(--ink-mute);
+    letter-spacing: 0.1em;
+  }
+  .ticket .name {
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+    line-height: 1.1;
+    text-align: center;
+    word-break: break-all;
+    display: inline-block;
+  }
+  .ticket .name.flip {
+    animation: nameFlip 100ms var(--ease-out);
+  }
+  @keyframes nameFlip {
+    0%   { transform: translateY(-8px); opacity: 0; }
+    60%  { opacity: 1; }
+    100% { transform: translateY(0); opacity: 1; }
+  }
+  .ticket .stamp {
+    font-family: var(--font-num);
+    font-size: 9px;
+    color: var(--ink-mute);
+    letter-spacing: 0.08em;
+  }
+  .ticket.empty .name {
+    color: var(--ink-mute);
+    font-weight: 400;
+    font-size: 20px;
+  }
+  .ticket.rolling {
+    animation: jitter 0.4s ease-in-out infinite;
+  }
+  .ticket.rolling .name {
+    color: var(--ink-3);
+    opacity: 0.55;
+  }
+  @keyframes jitter {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-1.5px); }
+  }
+  .ticket.locked {
+    background: linear-gradient(160deg, #FFF9F2 0%, var(--surface-soft) 100%);
+    animation: stamp 0.5s var(--ease-back);
+  }
+  .ticket.locked::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border: 1px solid var(--accent-soft);
+    border-radius: var(--r-md);
+    pointer-events: none;
+  }
+  .ticket.locked::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: var(--r-md);
+    background: radial-gradient(circle at 50% 50%, rgba(217, 102, 61, 0.18), transparent 60%);
+    opacity: 0;
+    animation: flash 0.55s ease-out;
+    pointer-events: none;
+  }
+  .ticket.locked .name {
+    color: var(--ink);
+    animation: nameLand 0.45s var(--ease-back);
+  }
+  @keyframes nameLand {
+    0%   { transform: scale(0.85); }
+    60%  { transform: scale(1.08); }
+    100% { transform: scale(1); }
+  }
+  .ticket.locked .stamp {
+    color: var(--accent);
+  }
+  @keyframes stamp {
+    0%   { transform: scale(0.75) rotate(-4deg); opacity: 0; }
+    50%  { transform: scale(1.08) rotate(2deg); opacity: 1; }
+    100% { transform: scale(1) rotate(0); opacity: 1; }
+  }
+  @keyframes flash {
+    0%   { opacity: 0; }
+    30%  { opacity: 1; }
+    100% { opacity: 0; }
+  }
+  /* celebration wave across tickets after all locked */
+  .winners.celebrating .ticket {
+    animation: bounce 0.6s var(--ease-back);
+  }
+  .winners.celebrating .ticket:nth-child(1) { animation-delay: 0ms; }
+  .winners.celebrating .ticket:nth-child(2) { animation-delay: 80ms; }
+  .winners.celebrating .ticket:nth-child(3) { animation-delay: 160ms; }
+  .winners.celebrating .ticket:nth-child(4) { animation-delay: 240ms; }
+  .winners.celebrating .ticket:nth-child(5) { animation-delay: 320ms; }
+  @keyframes bounce {
+    0%   { transform: translateY(0); }
+    40%  { transform: translateY(-8px); }
+    70%  { transform: translateY(2px); }
+    100% { transform: translateY(0); }
+  }
+
+  /* ========== Draw Button ========== */
+  .draw-zone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--s-3);
+    padding-top: var(--s-3);
+  }
+  .draw-btn {
+    appearance: none;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    background: var(--ink);
+    color: var(--bg);
+    padding: var(--s-4) var(--s-10);
+    font-size: var(--t-md);
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    border-radius: var(--r-pill);
+    box-shadow: var(--shadow-3);
+    transition: transform 0.2s var(--ease-out), box-shadow 0.2s var(--ease-out), background 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s-2);
+  }
+  .draw-btn:not(:disabled) {
+    animation: breathe 2.8s ease-in-out infinite;
+  }
+  @keyframes breathe {
+    0%, 100% { box-shadow: 0 12px 32px rgba(217, 102, 61, 0.18), 0 2px 6px rgba(217, 102, 61, 0.10); }
+    50%      { box-shadow: 0 16px 40px rgba(217, 102, 61, 0.30), 0 3px 10px rgba(217, 102, 61, 0.16); }
+  }
+  .draw-btn:hover {
+    transform: translateY(-2px);
+    background: var(--accent-deep);
+    animation: none;
+  }
+  .draw-btn:active { transform: translateY(0) scale(0.97); }
+  .draw-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: var(--shadow-1);
+    animation: none;
+  }
+  .draw-btn .dice {
+    display: inline-block;
+    font-size: 18px;
+    transition: transform 0.4s var(--ease-out);
+  }
+  .draw-btn:hover .dice {
+    transform: rotate(-15deg);
+  }
+  .draw-btn:disabled .dice {
+    animation: spin 0.6s linear infinite;
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .draw-meta {
+    font-family: var(--font-num);
+    font-size: var(--t-xs);
+    color: var(--ink-3);
+    letter-spacing: 0.08em;
+  }
+  .draw-meta .dot {
+    color: var(--ink-mute);
+    margin: 0 var(--s-2);
+  }
+  .draw-meta .num {
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  /* ========== Quick Controls (under hero) ========== */
+  .controls {
+    display: flex;
+    justify-content: center;
+    gap: var(--s-2);
+    margin-top: var(--s-4);
+    padding-top: var(--s-4);
+    border-top: 1px dashed var(--line);
+    flex-wrap: wrap;
+  }
+  .ctrl {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s-2);
+    font-size: var(--t-sm);
+    color: var(--ink-2);
+  }
+  .ctrl input[type="number"] {
+    width: 48px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    border-radius: var(--r-sm);
+    padding: 4px 6px;
+    font-family: var(--font-num);
+    font-size: var(--t-sm);
+    text-align: center;
+    outline: none;
+    transition: border 0.15s;
+  }
+  .ctrl input[type="number"]:focus { border-color: var(--accent); }
+  .ctrl .switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    padding: 4px 10px;
+    border-radius: var(--r-pill);
+    background: var(--surface-soft);
+    transition: background 0.15s;
+    user-select: none;
+  }
+  .ctrl .switch:hover { background: var(--surface-sunk); }
+  .ctrl .switch.on { background: var(--leaf-soft); color: var(--leaf); }
+  .ctrl .switch input { display: none; }
+  .ctrl .switch .check {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    border: 1.5px solid var(--ink-mute);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    color: transparent;
+  }
+  .ctrl .switch.on .check {
+    background: var(--leaf);
+    border-color: var(--leaf);
+    color: #fff;
+  }
+
+  /* ========== Disclosure Sections ========== */
+  .section {
+    margin-top: var(--s-6);
+    background: var(--surface);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+    box-shadow: var(--shadow-1);
+  }
+  .section-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--s-4) var(--s-5);
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.12s;
+  }
+  .section-head:hover { background: var(--surface-soft); }
+  .section-head .title {
+    display: flex;
+    align-items: center;
+    gap: var(--s-3);
+    font-size: var(--t-base);
+    font-weight: 500;
+    color: var(--ink);
+  }
+  .section-head .count {
+    font-family: var(--font-num);
+    font-size: var(--t-xs);
+    padding: 2px 8px;
+    border-radius: var(--r-pill);
+    background: var(--surface-sunk);
+    color: var(--ink-3);
+  }
+  .section-head .chev {
+    color: var(--ink-3);
+    transition: transform 0.2s var(--ease-out);
+    font-size: 12px;
+  }
+  .section.open .chev { transform: rotate(180deg); }
+  .section-body {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s var(--ease-out);
+  }
+  .section.open .section-body {
+    max-height: 720px;
+  }
+  .section-body-inner {
+    padding: 0 var(--s-5) var(--s-5);
+    border-top: 1px solid var(--line-soft);
+    padding-top: var(--s-4);
+  }
+
+  /* ========== Employee Editor ========== */
+  textarea {
+    width: 100%;
+    min-height: 140px;
+    padding: var(--s-3) var(--s-4);
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    font-family: var(--font-zh), var(--font-en);
+    font-size: var(--t-base);
+    line-height: 1.7;
+    resize: vertical;
+    outline: none;
+    background: var(--surface);
+    transition: border 0.15s, box-shadow 0.15s;
+  }
+  textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-tint);
+  }
+  .hint {
+    font-size: var(--t-xs);
+    color: var(--ink-mute);
+    margin-top: var(--s-2);
+  }
+  .roster {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: var(--s-3);
+    padding: var(--s-3);
+    background: var(--surface-soft);
+    border-radius: var(--r-md);
+    min-height: 44px;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    background: var(--surface);
+    border-radius: var(--r-pill);
+    font-size: var(--t-sm);
+    color: var(--ink-2);
+    box-shadow: var(--shadow-1);
+  }
+  .roster-empty {
+    color: var(--ink-mute);
+    font-size: var(--t-sm);
+    padding: var(--s-2);
+  }
+
+  .btn-row {
+    display: flex;
+    gap: var(--s-2);
+    margin-top: var(--s-4);
+    flex-wrap: wrap;
+  }
+  .btn {
+    appearance: none;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: var(--t-sm);
+    font-weight: 500;
+    padding: 9px 16px;
+    border-radius: var(--r-sm);
+    transition: all 0.12s var(--ease-out);
+  }
+  .btn-primary { background: var(--ink); color: var(--bg); }
+  .btn-primary:hover { background: var(--accent-deep); }
+  .btn-ghost { background: transparent; color: var(--ink-2); }
+  .btn-ghost:hover { background: var(--surface-soft); }
+  .btn-danger { background: transparent; color: var(--accent-deep); }
+  .btn-danger:hover { background: var(--accent-soft); }
+
+  /* ========== History ========== */
+  .history-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-1);
+    max-height: 360px;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+  .history-list::-webkit-scrollbar { width: 4px; }
+  .history-list::-webkit-scrollbar-thumb { background: var(--line); border-radius: 2px; }
+
+  .h-row {
+    display: grid;
+    grid-template-columns: 78px 1fr;
+    gap: var(--s-3);
+    padding: var(--s-3) var(--s-3);
+    border-radius: var(--r-md);
+    transition: background 0.12s;
+  }
+  .h-row:hover { background: var(--surface-soft); }
+  .h-date {
+    font-family: var(--font-num);
+    font-size: var(--t-xs);
+    color: var(--ink-3);
+    letter-spacing: 0.04em;
+    padding-top: 3px;
+  }
+  .h-names {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 6px;
+  }
+  .h-name {
+    font-size: var(--t-sm);
+    color: var(--ink-2);
+  }
+  .h-name::after {
+    content: "·";
+    margin-left: 6px;
+    color: var(--ink-mute);
+  }
+  .h-name:last-child::after { content: ""; }
+
+  .empty {
+    text-align: center;
+    color: var(--ink-mute);
+    font-size: var(--t-sm);
+    padding: var(--s-6) 0;
+  }
+
+  /* ========== Toast ========== */
+  .toast {
+    position: fixed;
+    bottom: var(--s-8);
+    left: 50%;
+    transform: translateX(-50%) translateY(10px);
+    background: var(--ink);
+    color: var(--bg);
+    padding: 10px 18px;
+    border-radius: var(--r-pill);
+    font-size: var(--t-sm);
+    opacity: 0;
+    transition: all 0.25s var(--ease-out);
+    pointer-events: none;
+    z-index: 100;
+    box-shadow: var(--shadow-2);
+  }
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* ========== Page Entry Animation ========== */
+  .masthead { animation: enter 0.55s var(--ease-out) both; }
+  .hero     { animation: enter 0.55s var(--ease-out) 0.1s both; }
+  .section  { animation: enter 0.55s var(--ease-out) 0.2s both; }
+  .section + .section { animation-delay: 0.3s; }
+  @keyframes enter {
+    from { transform: translateY(14px); opacity: 0; }
+    to   { transform: translateY(0); opacity: 1; }
+  }
+
+  /* dice idle wiggle */
+  .draw-btn:not(:disabled):not(:hover) .dice {
+    animation: wiggle 3.4s ease-in-out infinite;
+  }
+  @keyframes wiggle {
+    0%, 88%, 100% { transform: rotate(0); }
+    92%           { transform: rotate(-14deg); }
+    96%           { transform: rotate(10deg); }
+  }
+
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header class="masthead">
+    <div class="date" id="todayDate">— · —</div>
+    <h1>今天 <span class="em">谁</span> 下楼取饭</h1>
+    <p class="sub">公平随机 · 优先轮到近期没去过的同事</p>
+  </header>
+
+  <!-- Hero: Today's Draw -->
+  <section class="hero">
+    <div class="winners cols-4" id="winners">
+      <!-- tickets injected here -->
+    </div>
+
+    <div class="draw-zone">
+      <button class="draw-btn" id="drawBtn">
+        <span class="dice">🎲</span>
+        <span id="drawLabel">开 始 抽 签</span>
+      </button>
+      <div class="draw-meta">
+        共 <span class="num" id="metaTotal">0</span> 人
+        <span class="dot">·</span>
+        抽 <span class="num" id="metaPickN">4</span> 人
+      </div>
+    </div>
+
+    <div class="controls">
+      <div class="ctrl">
+        <span>人数</span>
+        <input type="number" id="pickCount" value="4" min="1" max="50">
+      </div>
+      <label class="ctrl">
+        <span class="switch" id="avoidSwitch">
+          <span class="check">✓</span>
+          <span>避免重复</span>
+          <input type="checkbox" id="avoidRecent" checked>
+        </span>
+      </label>
+      <button class="btn btn-ghost" id="copyBtn" style="display:none;">复制结果</button>
+    </div>
+  </section>
+
+  <!-- Employees -->
+  <section class="section" id="rosterSection">
+    <div class="section-head" onclick="toggleSection('rosterSection')">
+      <div class="title">
+        <span>员工名单</span>
+        <span class="count" id="rosterCount">0</span>
+      </div>
+      <span class="chev">▾</span>
+    </div>
+    <div class="section-body">
+      <div class="section-body-inner">
+        <div class="roster" id="rosterChips"></div>
+        <textarea id="employeeInput" placeholder="一行一个姓名，例如&#10;张三&#10;李四&#10;王五&#10;&#10;支持换行 / 空格 / 逗号分隔，自动去重"></textarea>
+        <div class="hint">名单保存在本浏览器本地，不会上传</div>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="saveEmployees()">保存名单</button>
+          <button class="btn btn-ghost" onclick="loadEmployees()">取消</button>
+          <button class="btn btn-danger" onclick="clearAll()" style="margin-left:auto;">清空全部</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- History -->
+  <section class="section" id="historySection">
+    <div class="section-head" onclick="toggleSection('historySection')">
+      <div class="title">
+        <span>历史记录</span>
+        <span class="count" id="historyCount">0</span>
+      </div>
+      <span class="chev">▾</span>
+    </div>
+    <div class="section-body">
+      <div class="section-body-inner">
+        <div class="history-list" id="history"></div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const KEYS = {
+  employees: 'delivery_employees',
+  history: 'delivery_history',
+  pickCount: 'delivery_pickcount',
+  avoidRecent: 'delivery_avoidrecent',
+};
+
+let employees = [];
+let history = [];
+
+const $ = id => document.getElementById(id);
+
+function showToast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+function parseInput(text) {
+  return text.split(/[\n,，\s]+/).map(s => s.trim()).filter(Boolean);
+}
+
+function load() {
+  employees = JSON.parse(localStorage.getItem(KEYS.employees) || '[]');
+  history = JSON.parse(localStorage.getItem(KEYS.history) || '[]');
+  const pc = localStorage.getItem(KEYS.pickCount);
+  if (pc) $('pickCount').value = pc;
+  const ar = localStorage.getItem(KEYS.avoidRecent);
+  if (ar !== null) $('avoidRecent').checked = ar === 'true';
+  syncSwitchUI();
+  $('pickCount').addEventListener('input', () => {
+    $('metaPickN').textContent = $('pickCount').value;
+  });
+}
+
+function syncSwitchUI() {
+  $('avoidSwitch').classList.toggle('on', $('avoidRecent').checked);
+}
+
+function toggleSection(id) {
+  $(id).classList.toggle('open');
+}
+
+function loadEmployees() {
+  $('employeeInput').value = employees.join('\n');
+  renderRoster();
+  updateMeta();
+}
+
+function renderRoster() {
+  const el = $('rosterChips');
+  $('rosterCount').textContent = employees.length;
+  if (employees.length === 0) {
+    el.innerHTML = '<div class="roster-empty">还没有员工，先添加几个名字吧</div>';
+  } else {
+    el.innerHTML = employees.map(n => `<span class="chip">${escapeHtml(n)}</span>`).join('');
+  }
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function saveEmployees() {
+  const raw = $('employeeInput').value;
+  const parsed = parseInput(raw);
+  const unique = [...new Set(parsed)];
+  employees = unique;
+  localStorage.setItem(KEYS.employees, JSON.stringify(employees));
+  loadEmployees();
+  showToast(`已保存 ${employees.length} 名员工`);
+  // auto collapse if just saved
+  if (employees.length > 0) {
+    setTimeout(() => $('rosterSection').classList.remove('open'), 400);
+  }
+}
+
+function clearAll() {
+  if (!confirm('确定清空所有员工和历史记录吗？')) return;
+  employees = [];
+  history = [];
+  localStorage.removeItem(KEYS.employees);
+  localStorage.removeItem(KEYS.history);
+  loadEmployees();
+  renderHistory();
+  renderEmptyTickets(4);
+  $('copyBtn').style.display = 'none';
+  showToast('已清空');
+}
+
+/* ===== Drawing logic ===== */
+
+function getRecentCounts(lookback = 5) {
+  const counts = {};
+  history.slice(0, lookback).forEach(entry => {
+    entry.names.forEach(n => { counts[n] = (counts[n] || 0) + 1; });
+  });
+  return counts;
+}
+
+function weightedShuffle(pool, recentCounts) {
+  const items = pool.map(name => {
+    const recent = recentCounts[name] || 0;
+    const weight = 1 / (1 + recent * 2);
+    return { name, key: -Math.log(Math.random()) / weight };
+  });
+  items.sort((a, b) => a.key - b.key);
+  return items.map(x => x.name);
+}
+
+function renderEmptyTickets(n) {
+  const w = $('winners');
+  w.className = 'winners cols-' + Math.min(n, 5);
+  const tickets = [];
+  for (let i = 0; i < n; i++) {
+    tickets.push(`
+      <div class="ticket empty">
+        <span class="slot">NO. ${String(i+1).padStart(2,'0')}</span>
+        <span class="name">—</span>
+        <span class="stamp">PENDING</span>
+      </div>
+    `);
+  }
+  w.innerHTML = tickets.join('');
+}
+
+function draw() {
+  if (employees.length === 0) {
+    showToast('请先在下方添加员工');
+    $('rosterSection').classList.add('open');
+    return;
+  }
+  const n = parseInt($('pickCount').value) || 4;
+  if (n > employees.length) {
+    showToast(`员工只有 ${employees.length} 人，不够抽 ${n} 人`);
+    return;
+  }
+  localStorage.setItem(KEYS.pickCount, n);
+  const avoidRecent = $('avoidRecent').checked;
+  localStorage.setItem(KEYS.avoidRecent, avoidRecent);
+
+  const recentCounts = avoidRecent ? getRecentCounts() : {};
+  const shuffled = weightedShuffle([...employees], recentCounts);
+  const winners = shuffled.slice(0, n);
+
+  animateDraw(winners);
+}
+
+function animateDraw(winners) {
+  const btn = $('drawBtn');
+  btn.disabled = true;
+  $('drawLabel').textContent = '抽签中…';
+  $('copyBtn').style.display = 'none';
+
+  const w = $('winners');
+  w.className = 'winners cols-' + Math.min(winners.length, 5);
+  w.innerHTML = winners.map((_, i) => `
+    <div class="ticket rolling" data-i="${i}">
+      <span class="slot">NO. ${String(i+1).padStart(2,'0')}</span>
+      <span class="name">?</span>
+      <span class="stamp">ROLLING</span>
+    </div>
+  `).join('');
+
+  const cells = w.querySelectorAll('.ticket');
+  let tick = 0;
+  const lockAt = [10, 14, 18, 22, 26]; // staggered lock times
+
+  const interval = setInterval(() => {
+    cells.forEach((cell, i) => {
+      const lockTick = lockAt[i] || lockAt[lockAt.length - 1];
+      const nameEl = cell.querySelector('.name');
+      if (tick < lockTick) {
+        nameEl.textContent = employees[Math.floor(Math.random() * employees.length)];
+        nameEl.classList.remove('flip');
+        void nameEl.offsetWidth;
+        nameEl.classList.add('flip');
+      } else if (!cell.classList.contains('locked')) {
+        nameEl.textContent = winners[i];
+        cell.querySelector('.stamp').textContent = stampLabel();
+        cell.classList.remove('rolling');
+        cell.classList.add('locked');
+      }
+    });
+    tick++;
+    if (tick > (lockAt[winners.length - 1] || lockAt[lockAt.length - 1])) {
+      clearInterval(interval);
+      w.classList.add('celebrating');
+      setTimeout(() => w.classList.remove('celebrating'), 1200);
+      finalize(winners);
+      btn.disabled = false;
+      $('drawLabel').textContent = '再 抽 一 次';
+    }
+  }, 70);
+}
+
+function stampLabel() {
+  const now = new Date();
+  return `${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')}`;
+}
+
+function finalize(winners) {
+  const now = new Date();
+  history.unshift({ names: winners, timestamp: now.getTime() });
+  history = history.slice(0, 30);
+  localStorage.setItem(KEYS.history, JSON.stringify(history));
+
+  $('copyBtn').style.display = 'inline-block';
+  updateMeta();
+  renderHistory();
+}
+
+function updateMeta() {
+  $('metaPickN').textContent = $('pickCount').value;
+  $('metaTotal').textContent = employees.length;
+}
+
+function pad(n) { return String(n).padStart(2, '0'); }
+
+function copyWinners() {
+  const cells = document.querySelectorAll('#winners .ticket.locked .name');
+  if (cells.length === 0) return;
+  const names = Array.from(cells).map(c => c.textContent).join('、');
+  const text = `今日取饭：${names}`;
+  navigator.clipboard.writeText(text).then(() => showToast('已复制到剪贴板'));
+}
+
+function renderHistory() {
+  const el = $('history');
+  $('historyCount').textContent = history.length;
+  if (history.length === 0) {
+    el.innerHTML = '<div class="empty">还没有抽签记录</div>';
+    return;
+  }
+  el.innerHTML = history.map(entry => {
+    const d = new Date(entry.timestamp);
+    return `
+      <div class="h-row">
+        <div class="h-date">${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}</div>
+        <div class="h-names">${entry.names.map(n => `<span class="h-name">${escapeHtml(n)}</span>`).join('')}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function setDateMast() {
+  const d = new Date();
+  const wd = ['SUN','MON','TUE','WED','THU','FRI','SAT'][d.getDay()];
+  $('todayDate').textContent =
+    `${d.getFullYear()} · ${pad(d.getMonth()+1)} · ${pad(d.getDate())} · ${wd}`;
+}
+
+/* ===== Wire up ===== */
+load();
+loadEmployees();
+renderHistory();
+renderEmptyTickets(parseInt($('pickCount').value) || 4);
+setDateMast();
+updateMeta();
+
+$('drawBtn').addEventListener('click', draw);
+$('copyBtn').addEventListener('click', copyWinners);
+$('avoidSwitch').addEventListener('click', (e) => {
+  if (e.target.tagName === 'INPUT') return;
+  $('avoidRecent').checked = !$('avoidRecent').checked;
+  syncSwitchUI();
+});
+$('pickCount').addEventListener('change', () => {
+  const n = parseInt($('pickCount').value) || 4;
+  if (!document.querySelector('#winners .ticket.locked')) {
+    renderEmptyTickets(n);
+  }
+  updateMeta();
+});
+
+// open roster by default if empty
+if (employees.length === 0) {
+  $('rosterSection').classList.add('open');
+}
+</script>
+</body>
+</html>
