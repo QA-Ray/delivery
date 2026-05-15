@@ -482,6 +482,15 @@
     color: var(--accent-deep);
     margin: 0 2px;
   }
+  .draw-unauth.is-top {
+    background: var(--leaf-soft);
+    border: 1px solid var(--leaf);
+    color: var(--leaf);
+  }
+  .draw-unauth.is-top strong {
+    color: var(--leaf);
+    font-family: inherit;
+  }
 
   /* ========== Quick Controls (under hero) ========== */
   .controls {
@@ -1228,11 +1237,38 @@ const KEYS = {
   pickCount: 'delivery_pickcount',
 };
 
-let employees = (window.EMPLOYEES || []).slice();
+// names.js entries can be either "Name" (string) or {name, email}
+const _rawEmployees = window.EMPLOYEES || [];
+let employees = _rawEmployees.map(e => typeof e === 'string' ? e : e.name);
+
+function getEmployeeEmail(name) {
+  if (!name) return null;
+  for (const e of _rawEmployees) {
+    const eName = typeof e === 'string' ? e : e.name;
+    if (eName === name) {
+      const eEmail = (typeof e === 'object' && e.email) || eName.toLowerCase() + '@maskex.vip';
+      return eEmail.toLowerCase();
+    }
+  }
+  return null;
+}
+
+function getLeaderboardTopNames() {
+  if (!history || history.length === 0) return [];
+  const counts = {};
+  history.forEach(entry => entry.names.forEach(n => counts[n] = (counts[n] || 0) + 1));
+  const values = Object.values(counts);
+  if (values.length === 0) return [];
+  const max = Math.max(...values);
+  if (max === 0) return [];
+  return Object.entries(counts).filter(([, c]) => c === max).map(([n]) => n);
+}
+
 let history = [];
 let sb = null;
 let currentUser = null;
 let isAuthorized = false;
+let authReason = '';   // 'whitelist' | 'top' | ''
 
 const $ = id => document.getElementById(id);
 
@@ -1253,7 +1289,11 @@ function initSupabase() {
   sb = window.supabase.createClient(cfg.url, cfg.anonKey);
   sb.channel('draws-feed')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'draws' },
-        () => loadHistory().then(renderHistory).then(updateMeta))
+        () => loadHistory().then(() => {
+          renderHistory();
+          updateMeta();
+          checkAuthorization();
+        }))
     .subscribe();
   return true;
 }
@@ -1274,19 +1314,39 @@ async function initAuth() {
 async function checkAuthorization() {
   if (!currentUser || !sb) {
     isAuthorized = false;
+    authReason = '';
     updateAuthGate();
     return;
   }
+  const userEmail = (currentUser.email || '').toLowerCase();
+
+  // path 1: whitelist
   try {
     const { data, error } = await sb
       .from('allowed_users')
       .select('email')
-      .eq('email', currentUser.email)
+      .eq('email', userEmail)
       .maybeSingle();
-    isAuthorized = !!data && !error;
-  } catch (e) {
-    isAuthorized = false;
+    if (!error && data) {
+      isAuthorized = true;
+      authReason = 'whitelist';
+      updateAuthGate();
+      return;
+    }
+  } catch (e) { /* fall through */ }
+
+  // path 2: current leaderboard top
+  const topNames = getLeaderboardTopNames();
+  const topEmails = topNames.map(getEmployeeEmail).filter(Boolean);
+  if (topEmails.includes(userEmail)) {
+    isAuthorized = true;
+    authReason = 'top';
+    updateAuthGate();
+    return;
   }
+
+  isAuthorized = false;
+  authReason = '';
   updateAuthGate();
 }
 
@@ -1296,30 +1356,44 @@ function updateAuthGate() {
   const dice = btn.querySelector('.dice');
   const unauth = $('drawUnauth');
 
-  // when not logged in: button enabled (clicking triggers signIn)
+  // not logged in: button enabled (clicking triggers signIn)
   if (!currentUser) {
     btn.disabled = false;
     btn.classList.remove('locked');
     label.textContent = '开 始 抽 签';
     if (dice) dice.textContent = '🎲';
+    unauth.classList.remove('is-top');
     unauth.style.display = 'none';
     return;
   }
-  // logged in but not on whitelist
+  // logged in but not authorized
   if (!isAuthorized) {
     btn.disabled = true;
     btn.classList.add('locked');
     label.textContent = '账 号 未 授 权';
     if (dice) dice.textContent = '🔒';
+    unauth.classList.remove('is-top');
     unauth.innerHTML = `账号 <strong>${escapeHtml(currentUser.email)}</strong> 不在白名单 · 请联系管理员添加`;
     unauth.style.display = 'block';
     return;
   }
-  // authorized
+  // authorized via leaderboard top
+  if (authReason === 'top') {
+    btn.disabled = false;
+    btn.classList.remove('locked');
+    label.textContent = '开 始 抽 签';
+    if (dice) dice.textContent = '🎲';
+    unauth.classList.add('is-top');
+    unauth.innerHTML = `🏆 <strong>你是当前榜首</strong> · 享有抽签权`;
+    unauth.style.display = 'block';
+    return;
+  }
+  // authorized via whitelist (default)
   btn.disabled = false;
   btn.classList.remove('locked');
   label.textContent = '开 始 抽 签';
   if (dice) dice.textContent = '🎲';
+  unauth.classList.remove('is-top');
   unauth.style.display = 'none';
 }
 
@@ -1739,7 +1813,8 @@ updateMeta();
 
 (async () => {
   if (initSupabase()) {
-    await Promise.all([initAuth(), loadHistory()]);
+    await loadHistory();   // load first so checkAuthorization sees the leaderboard
+    await initAuth();
   } else {
     renderAuth();
   }
