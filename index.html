@@ -507,7 +507,16 @@
   .hint {
     font-size: var(--t-xs);
     color: var(--ink-mute);
-    margin-top: var(--s-2);
+    margin-top: var(--s-3);
+    text-align: center;
+  }
+  .hint code {
+    font-family: var(--font-num);
+    font-size: 11px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: var(--surface-sunk);
+    color: var(--ink-2);
   }
   .roster {
     display: flex;
@@ -709,13 +718,7 @@
     <div class="section-body">
       <div class="section-body-inner">
         <div class="roster" id="rosterChips"></div>
-        <textarea id="employeeInput" placeholder="一行一个姓名，例如&#10;张三&#10;李四&#10;王五&#10;&#10;支持换行 / 空格 / 逗号分隔，自动去重"></textarea>
-        <div class="hint">名单保存在本浏览器本地，不会上传</div>
-        <div class="btn-row">
-          <button class="btn btn-primary" onclick="saveEmployees()">保存名单</button>
-          <button class="btn btn-ghost" onclick="loadEmployees()">取消</button>
-          <button class="btn btn-danger" onclick="clearAll()" style="margin-left:auto;">清空全部</button>
-        </div>
+        <div class="hint">名单维护在 <code>names.js</code>，修改后推送即生效</div>
       </div>
     </div>
   </section>
@@ -732,6 +735,9 @@
     <div class="section-body">
       <div class="section-body-inner">
         <div class="history-list" id="history"></div>
+        <div class="btn-row" id="historyActions" style="display:none;">
+          <button class="btn btn-danger" onclick="clearHistory()">清空历史</button>
+        </div>
       </div>
     </div>
   </section>
@@ -740,15 +746,15 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="names.js"></script>
 <script>
 const KEYS = {
-  employees: 'delivery_employees',
   history: 'delivery_history',
   pickCount: 'delivery_pickcount',
   avoidRecent: 'delivery_avoidrecent',
 };
 
-let employees = [];
+let employees = (window.EMPLOYEES || []).slice();
 let history = [];
 
 const $ = id => document.getElementById(id);
@@ -761,12 +767,7 @@ function showToast(msg) {
   t._timer = setTimeout(() => t.classList.remove('show'), 1800);
 }
 
-function parseInput(text) {
-  return text.split(/[\n,，\s]+/).map(s => s.trim()).filter(Boolean);
-}
-
 function load() {
-  employees = JSON.parse(localStorage.getItem(KEYS.employees) || '[]');
   history = JSON.parse(localStorage.getItem(KEYS.history) || '[]');
   const pc = localStorage.getItem(KEYS.pickCount);
   if (pc) $('pickCount').value = pc;
@@ -786,17 +787,11 @@ function toggleSection(id) {
   $(id).classList.toggle('open');
 }
 
-function loadEmployees() {
-  $('employeeInput').value = employees.join('\n');
-  renderRoster();
-  updateMeta();
-}
-
 function renderRoster() {
   const el = $('rosterChips');
   $('rosterCount').textContent = employees.length;
   if (employees.length === 0) {
-    el.innerHTML = '<div class="roster-empty">还没有员工，先添加几个名字吧</div>';
+    el.innerHTML = '<div class="roster-empty">未在 names.js 中找到名单</div>';
   } else {
     el.innerHTML = employees.map(n => `<span class="chip">${escapeHtml(n)}</span>`).join('');
   }
@@ -806,31 +801,12 @@ function escapeHtml(s) {
   return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-function saveEmployees() {
-  const raw = $('employeeInput').value;
-  const parsed = parseInput(raw);
-  const unique = [...new Set(parsed)];
-  employees = unique;
-  localStorage.setItem(KEYS.employees, JSON.stringify(employees));
-  loadEmployees();
-  showToast(`已保存 ${employees.length} 名员工`);
-  // auto collapse if just saved
-  if (employees.length > 0) {
-    setTimeout(() => $('rosterSection').classList.remove('open'), 400);
-  }
-}
-
-function clearAll() {
-  if (!confirm('确定清空所有员工和历史记录吗？')) return;
-  employees = [];
+function clearHistory() {
+  if (!confirm('确定清空抽签历史吗？')) return;
   history = [];
-  localStorage.removeItem(KEYS.employees);
   localStorage.removeItem(KEYS.history);
-  loadEmployees();
   renderHistory();
-  renderEmptyTickets(4);
-  $('copyBtn').style.display = 'none';
-  showToast('已清空');
+  showToast('已清空历史');
 }
 
 /* ===== Drawing logic ===== */
@@ -973,6 +949,7 @@ function copyWinners() {
 function renderHistory() {
   const el = $('history');
   $('historyCount').textContent = history.length;
+  $('historyActions').style.display = history.length ? 'flex' : 'none';
   if (history.length === 0) {
     el.innerHTML = '<div class="empty">还没有抽签记录</div>';
     return;
@@ -997,7 +974,7 @@ function setDateMast() {
 
 /* ===== Wire up ===== */
 load();
-loadEmployees();
+renderRoster();
 renderHistory();
 renderEmptyTickets(parseInt($('pickCount').value) || 4);
 setDateMast();
@@ -1017,11 +994,6 @@ $('pickCount').addEventListener('change', () => {
   }
   updateMeta();
 });
-
-// open roster by default if empty
-if (employees.length === 0) {
-  $('rosterSection').classList.add('open');
-}
 </script>
 </body>
 </html>
