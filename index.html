@@ -573,9 +573,12 @@
     display: flex;
     flex-direction: column;
     gap: var(--s-1);
-    max-height: 360px;
+    max-height: 240px;
     overflow-y: auto;
+    overscroll-behavior: contain;
     padding-right: 4px;
+    /* fade edges to suggest scroll */
+    mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%);
   }
   .history-list::-webkit-scrollbar { width: 4px; }
   .history-list::-webkit-scrollbar-thumb { background: var(--line); border-radius: 2px; }
@@ -695,13 +698,6 @@
         <span>人数</span>
         <input type="number" id="pickCount" value="4" min="1" max="50">
       </div>
-      <label class="ctrl">
-        <span class="switch" id="avoidSwitch">
-          <span class="check">✓</span>
-          <span>避免重复</span>
-          <input type="checkbox" id="avoidRecent" checked>
-        </span>
-      </label>
       <button class="btn btn-ghost" id="copyBtn" style="display:none;">复制结果</button>
     </div>
   </section>
@@ -735,9 +731,6 @@
     <div class="section-body">
       <div class="section-body-inner">
         <div class="history-list" id="history"></div>
-        <div class="btn-row" id="historyActions" style="display:none;">
-          <button class="btn btn-danger" onclick="clearHistory()">清空历史</button>
-        </div>
       </div>
     </div>
   </section>
@@ -752,7 +745,6 @@
 <script>
 const KEYS = {
   pickCount: 'delivery_pickcount',
-  avoidRecent: 'delivery_avoidrecent',
 };
 
 let employees = (window.EMPLOYEES || []).slice();
@@ -789,7 +781,7 @@ async function loadHistory() {
     .from('draws')
     .select('id, created_at, names')
     .order('created_at', { ascending: false })
-    .limit(30);
+    .limit(20);
   if (error) {
     console.error(error);
     showToast('读取历史失败：' + error.message);
@@ -805,16 +797,9 @@ async function loadHistory() {
 function load() {
   const pc = localStorage.getItem(KEYS.pickCount);
   if (pc) $('pickCount').value = pc;
-  const ar = localStorage.getItem(KEYS.avoidRecent);
-  if (ar !== null) $('avoidRecent').checked = ar === 'true';
-  syncSwitchUI();
   $('pickCount').addEventListener('input', () => {
     $('metaPickN').textContent = $('pickCount').value;
   });
-}
-
-function syncSwitchUI() {
-  $('avoidSwitch').classList.toggle('on', $('avoidRecent').checked);
 }
 
 function toggleSection(id) {
@@ -833,16 +818,6 @@ function renderRoster() {
 
 function escapeHtml(s) {
   return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-
-async function clearHistory() {
-  if (!confirm('确定清空抽签历史吗？所有人的记录都会清空。')) return;
-  if (!sb) { showToast('未连接 Supabase'); return; }
-  const { error } = await sb.from('draws').delete().neq('id', 0);
-  if (error) { showToast('清空失败：' + error.message); return; }
-  history = [];
-  renderHistory();
-  showToast('已清空历史');
 }
 
 /* ===== Drawing logic ===== */
@@ -893,10 +868,8 @@ function draw() {
     return;
   }
   localStorage.setItem(KEYS.pickCount, n);
-  const avoidRecent = $('avoidRecent').checked;
-  localStorage.setItem(KEYS.avoidRecent, avoidRecent);
 
-  const recentCounts = avoidRecent ? getRecentCounts() : {};
+  const recentCounts = getRecentCounts();
   const shuffled = weightedShuffle([...employees], recentCounts);
   const winners = shuffled.slice(0, n);
 
@@ -962,7 +935,7 @@ async function finalize(winners) {
   // optimistic insert into local list
   const now = new Date();
   history.unshift({ names: winners, timestamp: now.getTime(), pending: true });
-  history = history.slice(0, 30);
+  history = history.slice(0, 20);
   renderHistory();
   updateMeta();
 
@@ -1001,7 +974,6 @@ function copyWinners() {
 function renderHistory() {
   const el = $('history');
   $('historyCount').textContent = history.length;
-  $('historyActions').style.display = history.length ? 'flex' : 'none';
   if (history.length === 0) {
     el.innerHTML = '<div class="empty">还没有抽签记录</div>';
     return;
@@ -1041,11 +1013,6 @@ updateMeta();
 
 $('drawBtn').addEventListener('click', draw);
 $('copyBtn').addEventListener('click', copyWinners);
-$('avoidSwitch').addEventListener('click', (e) => {
-  if (e.target.tagName === 'INPUT') return;
-  $('avoidRecent').checked = !$('avoidRecent').checked;
-  syncSwitchUI();
-});
 $('pickCount').addEventListener('change', () => {
   const n = parseInt($('pickCount').value) || 4;
   if (!document.querySelector('#winners .ticket.locked')) {
