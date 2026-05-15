@@ -747,15 +747,17 @@
 <div class="toast" id="toast"></div>
 
 <script src="names.js"></script>
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script>
 const KEYS = {
-  history: 'delivery_history',
   pickCount: 'delivery_pickcount',
   avoidRecent: 'delivery_avoidrecent',
 };
 
 let employees = (window.EMPLOYEES || []).slice();
 let history = [];
+let sb = null;
 
 const $ = id => document.getElementById(id);
 
@@ -767,8 +769,40 @@ function showToast(msg) {
   t._timer = setTimeout(() => t.classList.remove('show'), 1800);
 }
 
+function initSupabase() {
+  const cfg = window.SUPABASE_CONFIG || {};
+  if (!cfg.url || !cfg.anonKey) {
+    showToast('请在 config.js 中填入 Supabase 配置');
+    return false;
+  }
+  sb = window.supabase.createClient(cfg.url, cfg.anonKey);
+  sb.channel('draws-feed')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'draws' },
+        () => loadHistory().then(renderHistory).then(updateMeta))
+    .subscribe();
+  return true;
+}
+
+async function loadHistory() {
+  if (!sb) return;
+  const { data, error } = await sb
+    .from('draws')
+    .select('id, created_at, names')
+    .order('created_at', { ascending: false })
+    .limit(30);
+  if (error) {
+    console.error(error);
+    showToast('读取历史失败：' + error.message);
+    return;
+  }
+  history = (data || []).map(r => ({
+    id: r.id,
+    names: r.names,
+    timestamp: new Date(r.created_at).getTime(),
+  }));
+}
+
 function load() {
-  history = JSON.parse(localStorage.getItem(KEYS.history) || '[]');
   const pc = localStorage.getItem(KEYS.pickCount);
   if (pc) $('pickCount').value = pc;
   const ar = localStorage.getItem(KEYS.avoidRecent);
@@ -801,10 +835,12 @@ function escapeHtml(s) {
   return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-function clearHistory() {
-  if (!confirm('确定清空抽签历史吗？')) return;
+async function clearHistory() {
+  if (!confirm('确定清空抽签历史吗？所有人的记录都会清空。')) return;
+  if (!sb) { showToast('未连接 Supabase'); return; }
+  const { error } = await sb.from('draws').delete().neq('id', 0);
+  if (error) { showToast('清空失败：' + error.message); return; }
   history = [];
-  localStorage.removeItem(KEYS.history);
   renderHistory();
   showToast('已清空历史');
 }
@@ -920,14 +956,30 @@ function stampLabel() {
   return `${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')}`;
 }
 
-function finalize(winners) {
-  const now = new Date();
-  history.unshift({ names: winners, timestamp: now.getTime() });
-  history = history.slice(0, 30);
-  localStorage.setItem(KEYS.history, JSON.stringify(history));
-
+async function finalize(winners) {
   $('copyBtn').style.display = 'inline-block';
+
+  // optimistic insert into local list
+  const now = new Date();
+  history.unshift({ names: winners, timestamp: now.getTime(), pending: true });
+  history = history.slice(0, 30);
+  renderHistory();
   updateMeta();
+
+  if (!sb) { showToast('未连接 Supabase，本次未同步'); return; }
+  const { data, error } = await sb
+    .from('draws')
+    .insert({ names: winners })
+    .select('id, created_at, names')
+    .single();
+  if (error) {
+    showToast('保存到云端失败：' + error.message);
+    history.shift();
+    renderHistory();
+    return;
+  }
+  // realtime subscription will also fire — but in case it's slow, reconcile now
+  history[0] = { id: data.id, names: data.names, timestamp: new Date(data.created_at).getTime() };
   renderHistory();
 }
 
@@ -975,10 +1027,17 @@ function setDateMast() {
 /* ===== Wire up ===== */
 load();
 renderRoster();
-renderHistory();
 renderEmptyTickets(parseInt($('pickCount').value) || 4);
 setDateMast();
 updateMeta();
+
+(async () => {
+  if (initSupabase()) {
+    await loadHistory();
+  }
+  renderHistory();
+  updateMeta();
+})();
 
 $('drawBtn').addEventListener('click', draw);
 $('copyBtn').addEventListener('click', copyWinners);
