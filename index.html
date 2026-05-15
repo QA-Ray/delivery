@@ -458,8 +458,8 @@
     position: absolute;
     top: 0; left: 0; right: 0;
     height: 6px;
-    background: linear-gradient(90deg, #E5BA51 0%, #D9663D 50%, #B0824A 100%);
-    opacity: 0.55;
+    background: linear-gradient(90deg, var(--accent) 0%, #E68660 50%, var(--accent) 100%);
+    opacity: 0.5;
   }
   .lb-head {
     display: flex;
@@ -491,56 +491,64 @@
 
   .lb-champion {
     position: relative;
-    background: linear-gradient(135deg, #FFF6E0 0%, #FFE4A3 100%);
-    border: 1px solid #ECC97B;
+    background: linear-gradient(135deg, var(--surface) 0%, var(--surface-soft) 100%);
+    border: 1px solid var(--line);
     border-radius: var(--r-lg);
     padding: var(--s-6) var(--s-3) var(--s-4);
     text-align: center;
-    box-shadow: 0 8px 24px rgba(217, 162, 53, 0.18);
+    box-shadow: 0 4px 14px rgba(217, 102, 61, 0.08), 0 1px 0 rgba(31, 27, 22, 0.03);
     animation: champion-in 0.55s var(--ease-back) both;
   }
+  .lb-champion::after {
+    content: "";
+    position: absolute;
+    top: 0; left: 12%; right: 12%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent 0%, var(--accent) 50%, transparent 100%);
+    border-radius: 2px;
+  }
   @keyframes champion-in {
-    0%   { transform: scale(0.9) translateY(8px); opacity: 0; }
+    0%   { transform: scale(0.94) translateY(6px); opacity: 0; }
     100% { transform: scale(1) translateY(0); opacity: 1; }
   }
   .lb-champion::before {
     content: "👑";
     position: absolute;
-    top: -16px;
+    top: -14px;
     left: 50%;
     transform: translateX(-50%);
-    font-size: 26px;
-    filter: drop-shadow(0 2px 4px rgba(180, 130, 40, 0.4));
-    animation: crown-bob 2.4s ease-in-out infinite;
+    font-size: 22px;
+    filter: drop-shadow(0 2px 4px rgba(120, 70, 30, 0.25));
+    animation: crown-bob 3s ease-in-out infinite;
   }
   @keyframes crown-bob {
-    0%, 100% { transform: translateX(-50%) translateY(0) rotate(-3deg); }
-    50%      { transform: translateX(-50%) translateY(-3px) rotate(3deg); }
+    0%, 100% { transform: translateX(-50%) translateY(0) rotate(-1.5deg); }
+    50%      { transform: translateX(-50%) translateY(-1.5px) rotate(1.5deg); }
   }
   .lb-champion .lb-name-tag {
     display: inline-block;
     margin: 0 auto var(--s-2);
-    padding: 8px 18px;
+    padding: 7px 16px;
     border-radius: var(--r-pill);
-    font-size: 20px;
-    font-weight: 700;
+    font-size: 18px;
+    font-weight: 600;
     line-height: 1.1;
     max-width: 90%;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.75), 0 4px 10px rgba(120, 80, 20, 0.18);
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.6), 0 2px 6px rgba(31, 27, 22, 0.06);
   }
   .lb-champion .lb-ccount {
     font-family: var(--font-num);
     font-size: var(--t-xs);
-    color: #8B6920;
+    color: var(--ink-3);
     letter-spacing: 0.04em;
   }
   .lb-champion .lb-ccount strong {
     font-size: var(--t-lg);
     font-weight: 700;
-    color: #4A370F;
+    color: var(--ink);
     margin-right: 3px;
   }
 
@@ -561,12 +569,12 @@
     animation: lbEnter 0.5s var(--ease-out) 0.15s both;
   }
   .lb-runner.silver {
-    background: linear-gradient(160deg, #F5F7FA 0%, #DCE3EB 100%);
-    border: 1px solid #C5CDD7;
+    background: var(--surface-sunk);
+    border: 1px solid var(--line);
   }
   .lb-runner.bronze {
-    background: linear-gradient(160deg, #FFE5D0 0%, #F8C599 100%);
-    border: 1px solid #E5AC7F;
+    background: linear-gradient(160deg, var(--surface-soft) 0%, var(--accent-tint) 100%);
+    border: 1px solid var(--line);
     animation-delay: 0.22s;
   }
   .lb-runner .lb-medal {
@@ -578,8 +586,8 @@
     font-weight: 600;
     line-height: 1;
   }
-  .silver .lb-medal { color: #6E7A87; }
-  .bronze .lb-medal { color: #A06A33; }
+  .silver .lb-medal { color: var(--ink-3); }
+  .bronze .lb-medal { color: var(--accent-deep); }
   .lb-runner .lb-name-tag {
     display: inline-block;
     padding: 5px 12px;
@@ -591,15 +599,14 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.7);
+    box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.55);
   }
   .lb-runner .lb-rcount {
     font-family: var(--font-num);
     font-size: var(--t-xs);
     font-weight: 600;
+    color: var(--ink-3);
   }
-  .silver .lb-rcount { color: #5F6A77; }
-  .bronze .lb-rcount { color: #82542A; }
 
   /* ---- "Rest" header & list ---- */
   .lb-rest-head {
@@ -1403,12 +1410,15 @@ function copyWinners() {
 function avatarFor(name) {
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
-  const hues = [12, 32, 52, 142, 192, 218, 262, 292, 332];
-  const hue = hues[Math.abs(h) % hues.length];
-  return {
-    bg:  `hsl(${hue} 62% 86%)`,
-    ink: `hsl(${hue} 42% 32%)`,
-  };
+  // 5-color muted earth palette — all share warm/neutral temperature
+  const palette = [
+    { bg: '#EFE3CE', ink: '#6A5235' }, // 米 cream
+    { bg: '#E9D2B8', ink: '#7A532A' }, // 沙 sand
+    { bg: '#E5C7B3', ink: '#7A4A30' }, // 陶 clay
+    { bg: '#D9DEC7', ink: '#5A6238' }, // 苔 sage
+    { bg: '#D7DBE0', ink: '#4F5663' }, // 雾 mist
+  ];
+  return palette[Math.abs(h) % palette.length];
 }
 
 function renderLeaderboard() {
