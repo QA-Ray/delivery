@@ -664,9 +664,103 @@
     96%           { transform: rotate(10deg); }
   }
 
+  /* ========== Auth Bar ========== */
+  .auth-bar {
+    position: fixed;
+    top: var(--s-4);
+    right: var(--s-5);
+    z-index: 20;
+    animation: enter 0.55s var(--ease-out) 0.3s both;
+  }
+  .auth-btn {
+    appearance: none;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--ink-2);
+    font-family: inherit;
+    font-size: var(--t-sm);
+    padding: 7px 14px;
+    border-radius: var(--r-pill);
+    cursor: pointer;
+    box-shadow: var(--shadow-1);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.15s var(--ease-out);
+  }
+  .auth-btn:hover { background: var(--surface-soft); transform: translateY(-1px); }
+  .auth-btn svg { width: 14px; height: 14px; }
+  .user-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s-2);
+    padding: 4px 6px 4px 4px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r-pill);
+    box-shadow: var(--shadow-1);
+  }
+  .user-pill img {
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+  .user-pill .uname {
+    font-size: var(--t-sm);
+    color: var(--ink);
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .user-pill .logout {
+    appearance: none;
+    border: none;
+    background: var(--surface-soft);
+    color: var(--ink-3);
+    font-size: 14px;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    cursor: pointer;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.12s;
+  }
+  .user-pill .logout:hover { background: var(--accent-soft); color: var(--accent-deep); }
+
+  /* drawn-by chip in history */
+  .h-by {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 3px;
+    font-size: 11px;
+    color: var(--ink-3);
+  }
+  .h-by img {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+
 </style>
 </head>
 <body>
+
+<div class="auth-bar">
+  <button class="auth-btn" id="loginBtn" onclick="signIn()">
+    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+    用 Google 登录
+  </button>
+  <div class="user-pill" id="userPill" style="display:none;">
+    <img id="userAvatar" alt="">
+    <span class="uname" id="userName"></span>
+    <button class="logout" onclick="signOut()" title="退出">×</button>
+  </div>
+</div>
+
 <div class="container">
 
   <header class="masthead">
@@ -750,6 +844,7 @@ const KEYS = {
 let employees = (window.EMPLOYEES || []).slice();
 let history = [];
 let sb = null;
+let currentUser = null;
 
 const $ = id => document.getElementById(id);
 
@@ -775,11 +870,51 @@ function initSupabase() {
   return true;
 }
 
+async function initAuth() {
+  if (!sb) return;
+  const { data: { session } } = await sb.auth.getSession();
+  currentUser = session?.user || null;
+  renderAuth();
+  sb.auth.onAuthStateChange((_event, session) => {
+    currentUser = session?.user || null;
+    renderAuth();
+  });
+}
+
+function renderAuth() {
+  if (currentUser) {
+    $('loginBtn').style.display = 'none';
+    $('userPill').style.display = 'inline-flex';
+    const meta = currentUser.user_metadata || {};
+    const name = meta.full_name || meta.name || currentUser.email;
+    $('userName').textContent = name;
+    $('userAvatar').src = meta.avatar_url || '';
+    $('userAvatar').alt = name;
+  } else {
+    $('loginBtn').style.display = 'inline-flex';
+    $('userPill').style.display = 'none';
+  }
+}
+
+async function signIn() {
+  if (!sb) { showToast('Supabase 未就绪'); return; }
+  await sb.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: window.location.origin + window.location.pathname },
+  });
+}
+
+async function signOut() {
+  if (!sb) return;
+  await sb.auth.signOut();
+  showToast('已退出');
+}
+
 async function loadHistory() {
   if (!sb) return;
   const { data, error } = await sb
     .from('draws')
-    .select('id, created_at, names')
+    .select('id, created_at, names, drawn_by_name, drawn_by_avatar')
     .order('created_at', { ascending: false })
     .limit(20);
   if (error) {
@@ -791,6 +926,8 @@ async function loadHistory() {
     id: r.id,
     names: r.names,
     timestamp: new Date(r.created_at).getTime(),
+    drawn_by_name: r.drawn_by_name,
+    drawn_by_avatar: r.drawn_by_avatar,
   }));
 }
 
@@ -857,6 +994,11 @@ function renderEmptyTickets(n) {
 }
 
 function draw() {
+  if (!currentUser) {
+    showToast('请先用 Google 登录');
+    signIn();
+    return;
+  }
   if (employees.length === 0) {
     showToast('请先在下方添加员工');
     $('rosterSection').classList.add('open');
@@ -932,9 +1074,19 @@ function stampLabel() {
 async function finalize(winners) {
   $('copyBtn').style.display = 'inline-block';
 
+  const meta = currentUser?.user_metadata || {};
+  const drawnByName = meta.full_name || meta.name || currentUser?.email || null;
+  const drawnByAvatar = meta.avatar_url || null;
+
   // optimistic insert into local list
   const now = new Date();
-  history.unshift({ names: winners, timestamp: now.getTime(), pending: true });
+  history.unshift({
+    names: winners,
+    timestamp: now.getTime(),
+    drawn_by_name: drawnByName,
+    drawn_by_avatar: drawnByAvatar,
+    pending: true,
+  });
   history = history.slice(0, 20);
   renderHistory();
   updateMeta();
@@ -942,8 +1094,12 @@ async function finalize(winners) {
   if (!sb) { showToast('未连接 Supabase，本次未同步'); return; }
   const { data, error } = await sb
     .from('draws')
-    .insert({ names: winners })
-    .select('id, created_at, names')
+    .insert({
+      names: winners,
+      drawn_by_name: drawnByName,
+      drawn_by_avatar: drawnByAvatar,
+    })
+    .select('id, created_at, names, drawn_by_name, drawn_by_avatar')
     .single();
   if (error) {
     showToast('保存到云端失败：' + error.message);
@@ -951,8 +1107,13 @@ async function finalize(winners) {
     renderHistory();
     return;
   }
-  // realtime subscription will also fire — but in case it's slow, reconcile now
-  history[0] = { id: data.id, names: data.names, timestamp: new Date(data.created_at).getTime() };
+  history[0] = {
+    id: data.id,
+    names: data.names,
+    timestamp: new Date(data.created_at).getTime(),
+    drawn_by_name: data.drawn_by_name,
+    drawn_by_avatar: data.drawn_by_avatar,
+  };
   renderHistory();
 }
 
@@ -980,10 +1141,16 @@ function renderHistory() {
   }
   el.innerHTML = history.map(entry => {
     const d = new Date(entry.timestamp);
+    const by = entry.drawn_by_name
+      ? `<div class="h-by">${entry.drawn_by_avatar ? `<img src="${escapeHtml(entry.drawn_by_avatar)}" alt="">` : ''}<span>${escapeHtml(entry.drawn_by_name)} 摇的</span></div>`
+      : '';
     return `
       <div class="h-row">
         <div class="h-date">${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}</div>
-        <div class="h-names">${entry.names.map(n => `<span class="h-name">${escapeHtml(n)}</span>`).join('')}</div>
+        <div>
+          <div class="h-names">${entry.names.map(n => `<span class="h-name">${escapeHtml(n)}</span>`).join('')}</div>
+          ${by}
+        </div>
       </div>
     `;
   }).join('');
@@ -1005,7 +1172,9 @@ updateMeta();
 
 (async () => {
   if (initSupabase()) {
-    await loadHistory();
+    await Promise.all([initAuth(), loadHistory()]);
+  } else {
+    renderAuth();
   }
   renderHistory();
   updateMeta();
