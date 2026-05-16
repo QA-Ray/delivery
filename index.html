@@ -1253,15 +1253,16 @@ function getEmployeeEmail(name) {
   return null;
 }
 
-function getLeaderboardTopNames() {
-  if (!history || history.length === 0) return [];
+function getLeaderboardTopName() {
+  if (!history || history.length === 0) return null;
   const counts = {};
   history.forEach(entry => entry.names.forEach(n => counts[n] = (counts[n] || 0) + 1));
-  const values = Object.values(counts);
-  if (values.length === 0) return [];
-  const max = Math.max(...values);
-  if (max === 0) return [];
-  return Object.entries(counts).filter(([, c]) => c === max).map(([n]) => n);
+  const entries = Object.entries(counts);
+  if (entries.length === 0) return null;
+  // same sort as renderLeaderboard: count desc, then name asc
+  entries.sort((a, b) => b[1] !== a[1] ? b[1] - a[1] : a[0].localeCompare(b[0]));
+  if (entries[0][1] === 0) return null;
+  return entries[0][0];
 }
 
 let history = [];
@@ -1335,14 +1336,16 @@ async function checkAuthorization() {
     }
   } catch (e) { /* fall through */ }
 
-  // path 2: current leaderboard top
-  const topNames = getLeaderboardTopNames();
-  const topEmails = topNames.map(getEmployeeEmail).filter(Boolean);
-  if (topEmails.includes(userEmail)) {
-    isAuthorized = true;
-    authReason = 'top';
-    updateAuthGate();
-    return;
+  // path 2: only the displayed #1 (lex-first among ties)
+  const topName = getLeaderboardTopName();
+  if (topName) {
+    const topEmail = (getEmployeeEmail(topName) || '').toLowerCase();
+    if (topEmail && topEmail === userEmail) {
+      isAuthorized = true;
+      authReason = 'top';
+      updateAuthGate();
+      return;
+    }
   }
 
   isAuthorized = false;
