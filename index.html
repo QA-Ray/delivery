@@ -369,6 +369,57 @@
     30%  { opacity: 1; }
     100% { opacity: 0; }
   }
+  /* lock toggle on locked tickets */
+  .lock-toggle {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 24px; height: 24px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.55);
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.5;
+    transition: all 0.15s var(--ease-out);
+    z-index: 3;
+    font-family: inherit;
+  }
+  .ticket.locked .lock-toggle { display: inline-flex; }
+  .lock-toggle:hover {
+    opacity: 1;
+    background: var(--surface);
+    box-shadow: 0 1px 4px rgba(31, 27, 22, 0.08);
+  }
+
+  /* unlocked (marked for reroll) state */
+  .ticket.unlocked {
+    background: linear-gradient(160deg, var(--accent-tint) 0%, var(--surface-soft) 100%);
+    border: 1px dashed var(--accent);
+    box-shadow: none;
+  }
+  .ticket.unlocked::after {
+    border-color: transparent !important;
+  }
+  .ticket.unlocked .name {
+    color: var(--ink-3);
+    text-decoration: line-through;
+    text-decoration-color: var(--ink-mute);
+  }
+  .ticket.unlocked .stamp {
+    color: var(--accent);
+  }
+  .ticket.unlocked .lock-toggle {
+    opacity: 1;
+    background: var(--surface);
+    color: var(--accent-deep);
+  }
+
   /* celebration wave across tickets after all locked */
   .winners.celebrating .ticket {
     animation: bounce 0.6s var(--ease-back);
@@ -1270,6 +1321,7 @@ let sb = null;
 let currentUser = null;
 let isAuthorized = false;
 let authReason = '';   // 'whitelist' | 'top' | ''
+const unlockedIndices = new Set();
 
 const $ = id => document.getElementById(id);
 
@@ -1522,6 +1574,24 @@ function draw() {
     showToast('账号未授权，无法抽签');
     return;
   }
+
+  // reroll mode: only re-roll unlocked cards
+  if (unlockedIndices.size > 0) {
+    const entry = history[0];
+    if (!entry) { unlockedIndices.clear(); updateDrawLabel(); return; }
+    const kept = entry.names.filter((_, i) => !unlockedIndices.has(i));
+    const pool = employees.filter(n => !kept.includes(n));
+    if (pool.length < unlockedIndices.size) {
+      showToast(`可换人选不够（需要 ${unlockedIndices.size} 人，剩 ${pool.length}）`);
+      return;
+    }
+    const recentCounts = getRecentCounts();
+    const shuffled = weightedShuffle(pool, recentCounts);
+    const replacements = shuffled.slice(0, unlockedIndices.size);
+    animateReroll(replacements);
+    return;
+  }
+
   if (employees.length === 0) {
     showToast('请先在下方添加员工');
     $('rosterSection').classList.add('open');
@@ -1542,6 +1612,7 @@ function draw() {
 }
 
 function animateDraw(winners) {
+  unlockedIndices.clear();
   const btn = $('drawBtn');
   btn.disabled = true;
   $('drawLabel').textContent = '抽签中…';
@@ -1554,6 +1625,7 @@ function animateDraw(winners) {
       <span class="slot">NO. ${String(i+1).padStart(2,'0')}</span>
       <span class="name">?</span>
       <span class="stamp">ROLLING</span>
+      <button class="lock-toggle" onclick="toggleLock(${i})" title="标记为请假 · 重摇这张">🔒</button>
     </div>
   `).join('');
 
@@ -1587,6 +1659,112 @@ function animateDraw(winners) {
       $('drawLabel').textContent = '再 抽 一 次';
     }
   }, 70);
+}
+
+function animateReroll(replacements) {
+  const btn = $('drawBtn');
+  btn.disabled = true;
+  $('drawLabel').textContent = '重 摇 中…';
+  $('copyBtn').style.display = 'none';
+
+  const cells = document.querySelectorAll('#winners .ticket');
+  const unlockedArr = [...unlockedIndices].sort((a, b) => a - b);
+  unlockedArr.forEach(i => {
+    const cell = cells[i];
+    cell.classList.remove('locked', 'unlocked');
+    cell.classList.add('rolling');
+    cell.querySelector('.stamp').textContent = 'ROLLING';
+    const lt = cell.querySelector('.lock-toggle');
+    if (lt) lt.textContent = '🔒';
+  });
+
+  let tick = 0;
+  const lockAt = [10, 14, 18, 22, 26];
+  const interval = setInterval(() => {
+    unlockedArr.forEach((i, idx) => {
+      const cell = cells[i];
+      const nameEl = cell.querySelector('.name');
+      const lockTick = lockAt[idx] || lockAt[lockAt.length - 1];
+      if (tick < lockTick) {
+        nameEl.textContent = employees[Math.floor(Math.random() * employees.length)];
+        nameEl.classList.remove('flip');
+        void nameEl.offsetWidth;
+        nameEl.classList.add('flip');
+      } else if (!cell.classList.contains('locked')) {
+        nameEl.textContent = replacements[idx];
+        cell.querySelector('.stamp').textContent = stampLabel();
+        cell.classList.remove('rolling');
+        cell.classList.add('locked');
+      }
+    });
+    tick++;
+    if (tick > (lockAt[unlockedArr.length - 1] || lockAt[lockAt.length - 1])) {
+      clearInterval(interval);
+      finalizeReroll(unlockedArr, replacements);
+      btn.disabled = false;
+    }
+  }, 70);
+}
+
+async function finalizeReroll(indices, replacements) {
+  const entry = history[0];
+  if (!entry) { unlockedIndices.clear(); updateDrawLabel(); return; }
+
+  const newNames = [...entry.names];
+  indices.forEach((idx, k) => { newNames[idx] = replacements[k]; });
+
+  // optimistic local
+  entry.names = newNames;
+  unlockedIndices.clear();
+  $('copyBtn').style.display = 'inline-block';
+  renderHistory();
+  updateMeta();
+  updateDrawLabel();
+
+  if (!sb || !entry.id) {
+    showToast(`已替换 ${indices.length} 张（本地）`);
+    return;
+  }
+  const { error } = await sb
+    .from('draws')
+    .update({ names: newNames })
+    .eq('id', entry.id);
+  if (error) {
+    showToast('云端更新失败：' + error.message);
+  } else {
+    showToast(`已替换 ${indices.length} 张`);
+  }
+}
+
+function toggleLock(index) {
+  if (!currentUser) { showToast('请先登录'); signIn(); return; }
+  if (!isAuthorized) { showToast('账号未授权'); return; }
+  const cells = document.querySelectorAll('#winners .ticket');
+  const cell = cells[index];
+  if (!cell || (!cell.classList.contains('locked') && !cell.classList.contains('unlocked'))) return;
+  if (unlockedIndices.has(index)) {
+    unlockedIndices.delete(index);
+    cell.classList.remove('unlocked');
+    cell.classList.add('locked');
+    cell.querySelector('.lock-toggle').textContent = '🔒';
+  } else {
+    unlockedIndices.add(index);
+    cell.classList.remove('locked');
+    cell.classList.add('unlocked');
+    cell.querySelector('.lock-toggle').textContent = '🔓';
+  }
+  updateDrawLabel();
+}
+
+function updateDrawLabel() {
+  const label = $('drawLabel');
+  if (unlockedIndices.size > 0) {
+    label.textContent = `重 摇 ${unlockedIndices.size} 张`;
+  } else if (history.length > 0) {
+    label.textContent = '再 抽 一 次';
+  } else {
+    label.textContent = '开 始 抽 签';
+  }
 }
 
 function stampLabel() {
