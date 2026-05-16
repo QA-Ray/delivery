@@ -1204,7 +1204,7 @@
   <header class="masthead">
     <div class="date" id="todayDate">— · —</div>
     <h1>今天 <span class="em">谁</span> 下楼取饭</h1>
-    <p class="sub">公平随机 · 优先轮到近期没去过的同事</p>
+    <p class="sub">公平随机 · 取饭次数越多，被摇中概率越低</p>
   </header>
 
   <!-- Hero + Leaderboard -->
@@ -1545,18 +1545,20 @@ function escapeHtml(s) {
 
 /* ===== Drawing logic ===== */
 
-function getRecentCounts(lookback = 5) {
+function getDrawCounts() {
+  // total pick count across all recorded history; used for weighted-avoid
   const counts = {};
-  history.slice(0, lookback).forEach(entry => {
+  history.forEach(entry => {
     entry.names.forEach(n => { counts[n] = (counts[n] || 0) + 1; });
   });
   return counts;
 }
 
-function weightedShuffle(pool, recentCounts) {
+function weightedShuffle(pool, counts) {
+  // weight = 1 / (1 + n * 2): each prior pickup makes you less likely to be picked
   const items = pool.map(name => {
-    const recent = recentCounts[name] || 0;
-    const weight = 1 / (1 + recent * 2);
+    const n = counts[name] || 0;
+    const weight = 1 / (1 + n * 2);
     return { name, key: -Math.log(Math.random()) / weight };
   });
   items.sort((a, b) => a.key - b.key);
@@ -1600,8 +1602,8 @@ function draw() {
       showToast(`可换人选不够（需要 ${unlockedIndices.size} 人，剩 ${pool.length}）`);
       return;
     }
-    const recentCounts = getRecentCounts();
-    const shuffled = weightedShuffle(pool, recentCounts);
+    const counts = getDrawCounts();
+    const shuffled = weightedShuffle(pool, counts);
     const replacements = shuffled.slice(0, unlockedIndices.size);
     animateReroll(replacements);
     return;
@@ -1619,8 +1621,8 @@ function draw() {
   }
   localStorage.setItem(KEYS.pickCount, n);
 
-  const recentCounts = getRecentCounts();
-  const shuffled = weightedShuffle([...employees], recentCounts);
+  const counts = getDrawCounts();
+  const shuffled = weightedShuffle([...employees], counts);
   const winners = shuffled.slice(0, n);
 
   animateDraw(winners);
