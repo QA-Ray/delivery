@@ -943,24 +943,65 @@
     color: var(--ink-2);
   }
   .roster {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
     margin-top: var(--s-3);
     padding: var(--s-3);
     background: var(--surface-soft);
     border-radius: var(--r-md);
     min-height: 44px;
   }
-  .chip {
-    display: inline-flex;
+  .roster.emp-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2px 14px;
+  }
+  @media (max-width: 580px) {
+    .roster.emp-grid { grid-template-columns: 1fr; }
+  }
+  .emp-row {
+    display: grid;
+    grid-template-columns: 64px 1fr 46px 36px;
     align-items: center;
-    padding: 4px 10px;
-    background: var(--surface);
-    border-radius: var(--r-pill);
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: var(--r-sm);
     font-size: var(--t-sm);
+    transition: background 0.12s;
+  }
+  .emp-row:hover { background: var(--surface); }
+  .emp-name {
+    color: var(--ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+  }
+  .emp-bar {
+    height: 5px;
+    background: var(--surface-sunk);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .emp-fill {
+    display: block;
+    height: 100%;
+    width: var(--p, 0%);
+    background: linear-gradient(90deg, var(--accent), #E68660);
+    border-radius: 3px;
+    transition: width 0.7s var(--ease-out);
+  }
+  .emp-prob {
+    font-family: var(--font-num);
+    font-size: var(--t-xs);
     color: var(--ink-2);
-    box-shadow: var(--shadow-1);
+    text-align: right;
+    font-weight: 600;
+  }
+  .emp-count {
+    font-family: var(--font-num);
+    font-size: 10px;
+    color: var(--ink-mute);
+    text-align: right;
+    letter-spacing: 0.04em;
   }
   .roster-empty {
     color: var(--ink-mute);
@@ -1533,10 +1574,36 @@ function renderRoster() {
   const el = $('rosterChips');
   $('rosterCount').textContent = employees.length;
   if (employees.length === 0) {
+    el.className = 'roster';
     el.innerHTML = '<div class="roster-empty">未在 names.js 中找到名单</div>';
-  } else {
-    el.innerHTML = employees.map(n => `<span class="chip">${escapeHtml(n)}</span>`).join('');
+    return;
   }
+  const counts = getDrawCounts();
+  const rows = employees.map(name => {
+    const c = counts[name] || 0;
+    return { name, count: c, weight: 1 / (1 + c * 2) };
+  });
+  const totalWeight = rows.reduce((s, r) => s + r.weight, 0) || 1;
+  rows.forEach(r => { r.prob = r.weight / totalWeight; });
+  rows.sort((a, b) => b.prob - a.prob || a.name.localeCompare(b.name));
+  const maxProb = rows[0].prob;
+  el.className = 'roster emp-grid';
+  el.innerHTML = rows.map(r => `
+    <div class="emp-row">
+      <span class="emp-name">${escapeHtml(r.name)}</span>
+      <span class="emp-bar"><span class="emp-fill" style="--p:${(r.prob / maxProb * 100).toFixed(1)}%"></span></span>
+      <span class="emp-prob">${(r.prob * 100).toFixed(1)}%</span>
+      <span class="emp-count">${r.count} 次</span>
+    </div>
+  `).join('');
+  // animate bars from 0 → target
+  requestAnimationFrame(() => {
+    el.querySelectorAll('.emp-fill').forEach(fill => {
+      const target = fill.style.getPropertyValue('--p');
+      fill.style.setProperty('--p', '0%');
+      requestAnimationFrame(() => fill.style.setProperty('--p', target));
+    });
+  });
 }
 
 function escapeHtml(s) {
@@ -1975,6 +2042,7 @@ function renderLastDraw() {
 function renderHistory() {
   renderLeaderboard();
   renderLastDraw();
+  renderRoster();
   const el = $('history');
   $('historyCount').textContent = history.length;
   if (history.length === 0) {
