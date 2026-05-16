@@ -1031,6 +1031,9 @@
   .h-name {
     font-size: var(--t-sm);
     color: var(--ink-2);
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
   }
   .h-name::after {
     content: "·";
@@ -1038,6 +1041,17 @@
     color: var(--ink-mute);
   }
   .h-name:last-child::after { content: ""; }
+  .h-name.is-swapped { color: var(--accent-deep); }
+  .h-orig {
+    font-size: 10px;
+    color: var(--accent);
+    font-style: italic;
+    background: var(--accent-tint);
+    padding: 1px 5px;
+    border-radius: 4px;
+    text-decoration: line-through;
+    text-decoration-color: var(--accent);
+  }
 
   .empty {
     text-align: center;
@@ -1485,7 +1499,7 @@ async function loadHistory() {
   if (!sb) return;
   const { data, error } = await sb
     .from('draws')
-    .select('id, created_at, names, drawn_by_name, drawn_by_avatar')
+    .select('id, created_at, names, original_names, drawn_by_name, drawn_by_avatar')
     .order('created_at', { ascending: false })
     .limit(1000);
   if (error) {
@@ -1496,6 +1510,7 @@ async function loadHistory() {
   history = (data || []).map(r => ({
     id: r.id,
     names: r.names,
+    original_names: r.original_names || r.names,
     timestamp: new Date(r.created_at).getTime(),
     drawn_by_name: r.drawn_by_name,
     drawn_by_avatar: r.drawn_by_avatar,
@@ -1783,6 +1798,7 @@ async function finalize(winners) {
   const now = new Date();
   history.unshift({
     names: winners,
+    original_names: winners.slice(),
     timestamp: now.getTime(),
     drawn_by_name: drawnByName,
     drawn_by_avatar: drawnByAvatar,
@@ -1797,10 +1813,11 @@ async function finalize(winners) {
     .from('draws')
     .insert({
       names: winners,
+      original_names: winners,
       drawn_by_name: drawnByName,
       drawn_by_avatar: drawnByAvatar,
     })
-    .select('id, created_at, names, drawn_by_name, drawn_by_avatar')
+    .select('id, created_at, names, original_names, drawn_by_name, drawn_by_avatar')
     .single();
   if (error) {
     showToast('保存到云端失败：' + error.message);
@@ -1811,6 +1828,7 @@ async function finalize(winners) {
   history[0] = {
     id: data.id,
     names: data.names,
+    original_names: data.original_names || data.names,
     timestamp: new Date(data.created_at).getTime(),
     drawn_by_name: data.drawn_by_name,
     drawn_by_avatar: data.drawn_by_avatar,
@@ -1966,11 +1984,17 @@ function renderHistory() {
     const by = entry.drawn_by_name
       ? `<div class="h-by">${entry.drawn_by_avatar ? `<img src="${escapeHtml(entry.drawn_by_avatar)}" alt="">` : ''}<span>${escapeHtml(entry.drawn_by_name)} 摇的</span></div>`
       : '';
+    const orig = entry.original_names || entry.names;
+    const namesHtml = entry.names.map((n, i) => {
+      const o = orig[i];
+      const swapped = o && o !== n;
+      return `<span class="h-name${swapped ? ' is-swapped' : ''}">${escapeHtml(n)}${swapped ? `<span class="h-orig">原 ${escapeHtml(o)}</span>` : ''}</span>`;
+    }).join('');
     return `
       <div class="h-row">
         <div class="h-date">${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}</div>
         <div>
-          <div class="h-names">${entry.names.map(n => `<span class="h-name">${escapeHtml(n)}</span>`).join('')}</div>
+          <div class="h-names">${namesHtml}</div>
           ${by}
         </div>
       </div>
