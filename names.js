@@ -21,7 +21,6 @@ window.EMPLOYEES = [
   "raley",
   "Super",
   "Wade",
-  "lars",
   "matt",
   "kori",
   "kilo",
