@@ -942,6 +942,51 @@
     background: var(--surface-sunk);
     color: var(--ink-2);
   }
+
+  /* ========== Guide ========== */
+  .guide {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-5);
+  }
+  .guide-item {
+    display: grid;
+    grid-template-columns: 30px 1fr;
+    gap: var(--s-3);
+    align-items: start;
+  }
+  .guide-icon {
+    font-size: 18px;
+    line-height: 1.4;
+  }
+  .guide-title {
+    font-size: var(--t-base);
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 3px;
+  }
+  .guide-desc {
+    font-size: var(--t-sm);
+    color: var(--ink-2);
+    line-height: 1.7;
+  }
+  .guide-desc code {
+    font-family: var(--font-num);
+    font-size: 12px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: var(--surface-sunk);
+    color: var(--ink);
+  }
+  .guide-desc kbd {
+    font-family: inherit;
+    font-size: 12px;
+    padding: 2px 8px;
+    border-radius: var(--r-sm);
+    background: var(--ink);
+    color: var(--bg);
+    letter-spacing: 0.04em;
+  }
   .roster {
     margin-top: var(--s-3);
     padding: var(--s-3);
@@ -1297,6 +1342,58 @@
       <div id="leaderboardWrap"></div>
     </aside>
   </div>
+
+  <!-- Guide -->
+  <section class="section" id="guideSection">
+    <div class="section-head" onclick="toggleSection('guideSection')">
+      <div class="title">
+        <span>使用说明</span>
+        <span class="count">5</span>
+      </div>
+      <span class="chev">▾</span>
+    </div>
+    <div class="section-body">
+      <div class="section-body-inner">
+        <div class="guide">
+          <div class="guide-item">
+            <span class="guide-icon">🎲</span>
+            <div class="guide-body">
+              <div class="guide-title">怎么抽</div>
+              <div class="guide-desc">登录后点 <kbd>开始抽签</kbd>，默认抽 4 人。每个员工的下一次中签概率 = <code>1 / (1 + 历史次数 × 2)</code>，归一化后实时展示在「员工名单」面板里。</div>
+            </div>
+          </div>
+          <div class="guide-item">
+            <span class="guide-icon">🔒</span>
+            <div class="guide-body">
+              <div class="guide-title">有人请假怎么换</div>
+              <div class="guide-desc">抽完后每张牌右上角有 🔒。点一下变 🔓 表示该位置要重摇，主按钮文案会变成 <kbd>重 摇 N 张</kbd>。只换被解锁的位置，其他保留。原名会保留在历史里（红字标注）。</div>
+            </div>
+          </div>
+          <div class="guide-item">
+            <span class="guide-icon">🔐</span>
+            <div class="guide-body">
+              <div class="guide-title">谁能摇</div>
+              <div class="guide-desc">两类账号可以抽签：① 白名单内（Supabase <code>allowed_users</code> 表）② 当前排行榜冠军（同票时只有金卡上那位）。没权限的人按钮会变灰。</div>
+            </div>
+          </div>
+          <div class="guide-item">
+            <span class="guide-icon">🏆</span>
+            <div class="guide-body">
+              <div class="guide-title">排行榜</div>
+              <div class="guide-desc">统计全部抽签记录的中签次数。前三名上奖台（金/银/铜），4–10 名列表展示。被抽得多的人，下一次摇中的概率会降低。</div>
+            </div>
+          </div>
+          <div class="guide-item">
+            <span class="guide-icon">📝</span>
+            <div class="guide-body">
+              <div class="guide-title">维护名单 / 白名单</div>
+              <div class="guide-desc">员工名单改 <code>names.js</code> 后 git push 即生效。白名单改 Supabase Studio → <code>allowed_users</code> → Insert row，邮箱形如 <code>name@maskex.vip</code>。</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
 
   <!-- Employees -->
   <section class="section" id="rosterSection">
