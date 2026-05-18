@@ -1373,7 +1373,7 @@
             <span class="guide-icon">🔐</span>
             <div class="guide-body">
               <div class="guide-title">谁能摇</div>
-              <div class="guide-desc">两类账号可以抽签：① 白名单内（Supabase <code>allowed_users</code> 表）② 当前排行榜冠军（同票时只有金卡上那位）。没权限的人按钮会变灰。</div>
+              <div class="guide-desc">两类账号可以抽签：① 邮箱出现在 <code>employees</code> 表中且 <code>can_draw = true</code> ② 当前排行榜冠军（同票时只有金卡上那位）。没权限的人按钮会变灰。</div>
             </div>
           </div>
           <div class="guide-item">
@@ -1386,8 +1386,8 @@
           <div class="guide-item">
             <span class="guide-icon">📝</span>
             <div class="guide-body">
-              <div class="guide-title">维护名单 / 白名单</div>
-              <div class="guide-desc">员工名单改 <code>names.js</code> 后 git push 即生效。白名单改 Supabase Studio → <code>allowed_users</code> → Insert row，邮箱形如 <code>name@maskex.vip</code>。</div>
+              <div class="guide-title">维护名单</div>
+              <div class="guide-desc">Supabase Studio → <code>employees</code> 表 Insert/Edit row：<code>name</code> 必填，<code>email</code> 可空（默认 <code>name@maskex.vip</code>），<code>can_draw</code> 控制能否点抽签按钮（默认 false，仅管理员勾上）。改完刷新页面即生效。</div>
             </div>
           </div>
         </div>
@@ -1407,7 +1407,7 @@
     <div class="section-body">
       <div class="section-body-inner">
         <div class="roster" id="rosterChips"></div>
-        <div class="hint">名单维护在 <code>names.js</code>，修改后推送即生效</div>
+        <div class="hint">名单维护在 Supabase Studio → <code>employees</code> 表，修改后刷新即生效</div>
       </div>
     </div>
   </section>
@@ -1432,7 +1432,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="names.js"></script>
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script>
@@ -1440,16 +1439,16 @@ const KEYS = {
   pickCount: 'delivery_pickcount',
 };
 
-// names.js entries can be either "Name" (string) or {name, email}
-const _rawEmployees = window.EMPLOYEES || [];
-let employees = _rawEmployees.map(e => typeof e === 'string' ? e : e.name);
+// employees loaded from Supabase `employees` table: { name, email? }
+// email is optional — when blank, defaults to `name.toLowerCase()@maskex.vip`
+let _rawEmployees = [];
+let employees = [];
 
 function getEmployeeEmail(name) {
   if (!name) return null;
   for (const e of _rawEmployees) {
-    const eName = typeof e === 'string' ? e : e.name;
-    if (eName === name) {
-      const eEmail = (typeof e === 'object' && e.email) || eName.toLowerCase() + '@maskex.vip';
+    if (e.name === name) {
+      const eEmail = e.email || e.name.toLowerCase() + '@maskex.vip';
       return eEmail.toLowerCase();
     }
   }
@@ -1525,20 +1524,18 @@ async function checkAuthorization() {
   }
   const userEmail = (currentUser.email || '').toLowerCase();
 
-  // path 1: whitelist
-  try {
-    const { data, error } = await sb
-      .from('allowed_users')
-      .select('email')
-      .eq('email', userEmail)
-      .maybeSingle();
-    if (!error && data) {
-      isAuthorized = true;
-      authReason = 'whitelist';
-      updateAuthGate();
-      return;
-    }
-  } catch (e) { /* fall through */ }
+  // path 1: employee flagged can_draw = true
+  const matched = _rawEmployees.some(e => {
+    if (!e.can_draw) return false;
+    const eEmail = (e.email || e.name.toLowerCase() + '@maskex.vip').toLowerCase();
+    return eEmail === userEmail;
+  });
+  if (matched) {
+    isAuthorized = true;
+    authReason = 'whitelist';
+    updateAuthGate();
+    return;
+  }
 
   // path 2: only the displayed #1 (lex-first among ties)
   const topName = getLeaderboardTopName();
@@ -1633,6 +1630,25 @@ async function signOut() {
   showToast('已退出');
 }
 
+async function loadEmployees() {
+  if (!sb) return;
+  const { data, error } = await sb
+    .from('employees')
+    .select('name, email, can_draw')
+    .order('id');
+  if (error) {
+    console.error(error);
+    showToast('读取员工名单失败：' + error.message);
+    return;
+  }
+  _rawEmployees = (data || []).map(r => ({
+    name: r.name,
+    email: r.email || null,
+    can_draw: !!r.can_draw,
+  }));
+  employees = _rawEmployees.map(e => e.name);
+}
+
 async function loadHistory() {
   if (!sb) return;
   const { data, error } = await sb
@@ -1672,7 +1688,7 @@ function renderRoster() {
   $('rosterCount').textContent = employees.length;
   if (employees.length === 0) {
     el.className = 'roster';
-    el.innerHTML = '<div class="roster-empty">未在 names.js 中找到名单</div>';
+    el.innerHTML = '<div class="roster-empty">未在数据库中找到名单</div>';
     return;
   }
   const counts = getDrawCounts();
@@ -2178,16 +2194,18 @@ function setDateMast() {
 
 /* ===== Wire up ===== */
 load();
-renderRoster();
 renderEmptyTickets(parseInt($('pickCount').value) || 4);
 setDateMast();
 updateMeta();
 
 (async () => {
   if (initSupabase()) {
+    await loadEmployees();
+    renderRoster();
     await loadHistory();   // load first so checkAuthorization sees the leaderboard
     await initAuth();
   } else {
+    renderRoster();
     renderAuth();
   }
   renderHistory();
