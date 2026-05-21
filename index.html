@@ -1694,7 +1694,7 @@ function renderRoster() {
   const counts = getDrawCounts();
   const rows = employees.map(name => {
     const c = counts[name] || 0;
-    return { name, count: c, weight: 1 / (1 + c * 2) };
+    return { name, count: c, weight: 1 / (1 + c * 6) };
   });
   const totalWeight = rows.reduce((s, r) => s + r.weight, 0) || 1;
   rows.forEach(r => { r.prob = r.weight / totalWeight; });
@@ -1735,10 +1735,10 @@ function getDrawCounts() {
 }
 
 function weightedShuffle(pool, counts) {
-  // weight = 1 / (1 + n * 2): each prior pickup makes you less likely to be picked
+  // weight = 1 / (1 + n * 6): each prior pickup makes you less likely to be picked
   const items = pool.map(name => {
     const n = counts[name] || 0;
-    const weight = 1 / (1 + n * 2);
+    const weight = 1 / (1 + n * 6);
     return { name, key: -Math.log(Math.random()) / weight };
   });
   items.sort((a, b) => a.key - b.key);
