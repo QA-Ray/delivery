@@ -1359,7 +1359,7 @@
             <span class="guide-icon">🎲</span>
             <div class="guide-body">
               <div class="guide-title">怎么抽</div>
-              <div class="guide-desc">登录后点 <kbd>开始抽签</kbd>，默认抽 4 人。每个员工的下一次中签概率 = <code>1 / (1 + 历史次数 × 2)</code>，归一化后实时展示在「员工名单」面板里。</div>
+              <div class="guide-desc">登录后点 <kbd>开始抽签</kbd>，默认抽 4 人。每个员工的下一次中签权重 = <code>1 / (1 + 历史次数 × 10)</code>，归一化后实时展示在「员工名单」面板里——被抽中过 1 次后权重就只剩 1/11，明显避让。</div>
             </div>
           </div>
           <div class="guide-item">
@@ -1694,7 +1694,7 @@ function renderRoster() {
   const counts = getDrawCounts();
   const rows = employees.map(name => {
     const c = counts[name] || 0;
-    return { name, count: c, weight: 1 / (1 + c * 6) };
+    return { name, count: c, weight: 1 / (1 + c * 10) };
   });
   const totalWeight = rows.reduce((s, r) => s + r.weight, 0) || 1;
   rows.forEach(r => { r.prob = r.weight / totalWeight; });
@@ -1735,10 +1735,10 @@ function getDrawCounts() {
 }
 
 function weightedShuffle(pool, counts) {
-  // weight = 1 / (1 + n * 6): each prior pickup makes you less likely to be picked
+  // weight = 1 / (1 + n * 10): each prior pickup makes you less likely to be picked
   const items = pool.map(name => {
     const n = counts[name] || 0;
-    const weight = 1 / (1 + n * 6);
+    const weight = 1 / (1 + n * 10);
     return { name, key: -Math.log(Math.random()) / weight };
   });
   items.sort((a, b) => a.key - b.key);
