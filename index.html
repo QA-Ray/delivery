@@ -2808,6 +2808,11 @@ function renderVotePage() {
   const root = $('voteRoot');
   if (!root) return;
 
+  // Preserve menu-grid scroll position across full re-renders triggered by
+  // toggleVote (optimistic + finally) so the list doesn't jump back to top
+  // every time the user votes.
+  const prevScrollTop = root.querySelector('.menu-grid')?.scrollTop ?? 0;
+
   if (!sb) {
     root.innerHTML = '<div class="vote-state"><strong>未连接 Supabase</strong>请在 config.js 中填入配置</div>';
     return;
@@ -2863,6 +2868,12 @@ function renderVotePage() {
       toggleVote(btn.getAttribute('data-dish'), btn.getAttribute('data-kind'));
     });
   });
+
+  // Restore scroll on the freshly-rendered menu-grid
+  if (prevScrollTop > 0) {
+    const newGrid = root.querySelector('.menu-grid');
+    if (newGrid) newGrid.scrollTop = prevScrollTop;
+  }
 }
 
 function renderQuotaMeter(loveUsed, hateUsed, round) {
