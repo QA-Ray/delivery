@@ -1269,6 +1269,378 @@
     object-fit: cover;
   }
 
+  /* ========== Tab Nav (page switch) ========== */
+  .tab-nav {
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    margin: 0 auto var(--s-6);
+    width: fit-content;
+    background: var(--surface-soft);
+    border: 1px solid var(--line);
+    border-radius: var(--r-pill);
+    box-shadow: var(--shadow-inset);
+  }
+  .tab-nav button {
+    padding: 8px 22px;
+    font-family: var(--font-zh);
+    font-size: var(--t-md);
+    font-weight: 500;
+    color: var(--ink-mute);
+    background: transparent;
+    border: none;
+    border-radius: var(--r-pill);
+    cursor: pointer;
+    transition: all 180ms var(--ease-out);
+    letter-spacing: 0.5px;
+  }
+  .tab-nav button:hover { color: var(--ink); }
+  .tab-nav button[aria-selected="true"] {
+    color: #fff;
+    background: var(--accent);
+    font-weight: 600;
+    box-shadow: 0 2px 6px rgba(217,102,61,0.35), var(--shadow-inset);
+  }
+  .tab-nav button:focus-visible {
+    outline: 2px solid var(--leaf);
+    outline-offset: 2px;
+  }
+
+  /* ========== Pages ========== */
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* ========== Vote Page Layout ========== */
+  .vote-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: var(--s-5);
+    align-items: start;
+  }
+  @media (max-width: 760px) {
+    .vote-grid { grid-template-columns: 1fr; gap: var(--s-4); }
+  }
+
+  /* Round switcher */
+  .round-switch {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 18px;
+    margin-bottom: var(--s-5);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-1);
+  }
+  .rs-arrow {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    background: var(--surface-soft);
+    color: var(--ink);
+    font-size: 16px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 160ms var(--ease-out);
+  }
+  .rs-arrow:hover:not(:disabled) {
+    background: var(--accent-tint);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .rs-arrow:disabled { opacity: 0.3; cursor: not-allowed; }
+  .rs-mid { text-align: center; flex: 1; }
+  .rs-num {
+    font-family: var(--font-serif);
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--ink);
+    line-height: 1;
+  }
+  .rs-title {
+    margin-top: 4px;
+    font-size: var(--t-sm);
+    color: var(--ink-mute);
+  }
+  .rs-badge {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 2px 10px;
+    font-size: var(--t-xs);
+    font-weight: 600;
+    border-radius: var(--r-pill);
+    vertical-align: middle;
+    letter-spacing: 0.5px;
+  }
+  .rs-badge.active { background: var(--leaf-soft); color: var(--leaf); }
+  .rs-badge.closed { background: var(--surface-sunk); color: var(--ink-mute); }
+  .rs-badge.draft  { background: var(--accent-soft); color: var(--accent-deep); }
+
+  /* Quota meter */
+  .quota-meter {
+    display: flex;
+    gap: var(--s-5);
+    padding: 10px 16px;
+    margin-bottom: var(--s-4);
+    background: var(--surface-soft);
+    border: 1px dashed var(--line);
+    border-radius: var(--r-md);
+    font-size: var(--t-sm);
+    color: var(--ink-mute);
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .qm-group { display: inline-flex; align-items: center; gap: 8px; }
+  .qm-label { font-weight: 500; }
+  .qm-dots { display: inline-flex; gap: 4px; }
+  .qm-dot {
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: var(--line);
+    transition: background 180ms var(--ease-out);
+  }
+  .qm-group.love .qm-dot.on { background: var(--accent); }
+  .qm-group.hate .qm-dot.on { background: var(--ink); }
+  .qm-group.full .qm-label { color: var(--ink); font-weight: 600; }
+  .qm-spacer { flex: 1; }
+  .qm-hint { font-size: var(--t-xs); color: var(--ink-mute); }
+
+  /* Menu grid */
+  .menu-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 14px;
+  }
+  .dish-card {
+    position: relative;
+    padding: 14px 14px 12px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-1);
+    transition: transform 180ms var(--ease-out), box-shadow 180ms var(--ease-out);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 96px;
+  }
+  .dish-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-2);
+  }
+  .dish-card .dn {
+    font-family: var(--font-zh);
+    font-size: var(--t-md);
+    font-weight: 600;
+    color: var(--ink);
+    line-height: 1.3;
+    flex: 1;
+    padding-right: 6px;
+  }
+  .dish-card .vt-row {
+    display: flex;
+    gap: 6px;
+  }
+  .vote-toggle {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 6px 8px;
+    font-size: var(--t-sm);
+    font-family: var(--font-zh);
+    font-weight: 500;
+    border-radius: var(--r-pill);
+    background: transparent;
+    cursor: pointer;
+    transition: all 160ms var(--ease-out);
+    border: 1px solid var(--line);
+    color: var(--ink-mute);
+    line-height: 1;
+  }
+  .vote-toggle .vt-count {
+    font-family: var(--font-num);
+    font-size: var(--t-xs);
+    opacity: 0.7;
+  }
+  .vote-toggle.love:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-tint);
+  }
+  .vote-toggle.hate:hover:not(:disabled) {
+    border-color: var(--ink);
+    color: var(--ink);
+    background: var(--surface-soft);
+  }
+  .vote-toggle.love.on {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    box-shadow: 0 1px 3px rgba(217,102,61,0.4);
+  }
+  .vote-toggle.hate.on {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: #fff;
+  }
+  .vote-toggle:disabled {
+    opacity: 0.4; cursor: not-allowed;
+  }
+  .vote-toggle.on .vt-count { opacity: 1; }
+  .dish-card.loved::before,
+  .dish-card.hated::before {
+    position: absolute;
+    top: -8px; right: -8px;
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    color: #fff;
+    transform: rotate(8deg);
+    z-index: 2;
+    animation: stampPop 380ms var(--ease-back);
+    font-weight: 700;
+  }
+  .dish-card.loved::before {
+    content: '❤';
+    background: var(--accent);
+    box-shadow: 0 2px 4px rgba(217,102,61,0.4);
+  }
+  .dish-card.hated::before {
+    content: '✕';
+    background: var(--ink);
+    box-shadow: 0 2px 4px rgba(31,27,22,0.3);
+  }
+  @keyframes stampPop {
+    0%   { transform: rotate(-30deg) scale(0.3); opacity: 0; }
+    60%  { transform: rotate(12deg)  scale(1.15); }
+    100% { transform: rotate(8deg)   scale(1); opacity: 1; }
+  }
+
+  /* Vote board (leaderboard) */
+  .vote-board {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    padding: 18px;
+    position: sticky;
+    top: 16px;
+    box-shadow: var(--shadow-1);
+  }
+  .vb-section + .vb-section { margin-top: 22px; }
+  .vb-title {
+    font-family: var(--font-zh);
+    font-size: var(--t-md);
+    font-weight: 600;
+    margin: 0 0 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--ink);
+  }
+  .vb-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    font-size: 11px;
+    color: #fff;
+    font-weight: 700;
+  }
+  .vb-title.love .vb-icon { background: var(--accent); }
+  .vb-title.hate .vb-icon { background: var(--ink); }
+  .vb-row {
+    display: grid;
+    grid-template-columns: 26px 1fr 32px;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 0;
+    font-size: var(--t-sm);
+    border-bottom: 1px dashed var(--line-soft);
+  }
+  .vb-row:last-child { border-bottom: none; }
+  .vb-rank {
+    font-family: var(--font-num);
+    font-size: var(--t-xs);
+    text-align: center;
+    color: var(--ink-mute);
+  }
+  .vb-row.r1 .vb-rank,
+  .vb-row.r2 .vb-rank,
+  .vb-row.r3 .vb-rank { font-size: 16px; }
+  .vb-name {
+    position: relative;
+    font-weight: 500;
+    color: var(--ink);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .vb-bar {
+    position: absolute;
+    left: 0; right: 0; bottom: -3px;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--line-soft);
+    overflow: hidden;
+  }
+  .vb-bar i {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+    transition: width 240ms var(--ease-out);
+  }
+  .vb-section.hate .vb-bar i { background: var(--ink); }
+  .vb-count {
+    font-family: var(--font-num);
+    font-size: var(--t-sm);
+    color: var(--ink-mute);
+    text-align: right;
+  }
+  .vb-row.mine .vb-name::after {
+    content: '· 我';
+    margin-left: 6px;
+    font-size: var(--t-xs);
+    color: var(--accent);
+  }
+  .vb-section.hate .vb-row.mine .vb-name::after { color: var(--ink); }
+  .vb-empty {
+    text-align: center;
+    padding: 14px 0;
+    font-size: var(--t-sm);
+    color: var(--ink-mute);
+  }
+
+  /* Vote page state messages */
+  .vote-state {
+    text-align: center;
+    padding: 60px 24px;
+    background: var(--surface);
+    border: 1px dashed var(--line);
+    border-radius: var(--r-lg);
+    color: var(--ink-mute);
+    font-size: var(--t-sm);
+  }
+  .vote-state strong { color: var(--ink); display: block; margin-bottom: 6px; font-size: var(--t-md); }
+
+  .vote-readonly-notice {
+    padding: 10px 14px;
+    margin-bottom: var(--s-4);
+    background: var(--surface-sunk);
+    border-radius: var(--r-md);
+    font-size: var(--t-sm);
+    color: var(--ink-mute);
+    text-align: center;
+  }
+
 </style>
 </head>
 <body>
@@ -1289,10 +1661,16 @@
 
   <header class="masthead">
     <div class="date" id="todayDate">— · —</div>
-    <h1>今天 <span class="em">谁</span> 下楼取饭</h1>
-    <p class="sub">公平随机 · 取饭次数越多，被摇中概率越低</p>
+    <h1 id="pageTitle">今天 <span class="em">谁</span> 下楼取饭</h1>
+    <p class="sub" id="pageSub">公平随机 · 取饭次数越多，被摇中概率越低</p>
   </header>
 
+  <nav class="tab-nav" role="tablist" aria-label="主导航">
+    <button type="button" role="tab" data-page="draw" aria-selected="true">🎲 抽签</button>
+    <button type="button" role="tab" data-page="vote" aria-selected="false">🍱 菜品投票</button>
+  </nav>
+
+  <div class="page active" id="pageDraw" role="tabpanel">
   <!-- Hero + Leaderboard -->
   <div class="main-grid">
     <div class="main-left">
@@ -1427,6 +1805,13 @@
       </div>
     </div>
   </section>
+  </div><!-- /#pageDraw -->
+
+  <div class="page" id="pageVote" role="tabpanel" aria-labelledby="">
+    <div id="voteRoot">
+      <div class="vote-state">载入中…</div>
+    </div>
+  </div>
 
 </div>
 
@@ -1512,6 +1897,7 @@ async function initAuth() {
     currentUser = session?.user || null;
     renderAuth();
     checkAuthorization();
+    if (typeof initVoteModule === 'function') initVoteModule();
   });
 }
 
@@ -2192,6 +2578,455 @@ function setDateMast() {
     `${d.getFullYear()} · ${pad(d.getMonth()+1)} · ${pad(d.getDate())} · ${wd}`;
 }
 
+/* ============================================================
+   Vote module — dish voting (love / hate) per round
+   ============================================================ */
+const VOTE_STATE = {
+  rounds: [],            // newest first by round_number
+  cursor: 0,             // index into rounds
+  dishes: [],            // dishes of current round
+  myVotes: new Set(),    // 'dishId:kind'
+  tallies: new Map(),    // dishId -> { love, hate }
+  votesChannel: null,    // dish_votes subscription (per-round)
+  roundsChannel: null,   // vote_rounds subscription (always-on while logged in)
+  pending: new Set(),    // 'dishId:kind' in-flight write lock (fixes double-click race)
+  initing: false,        // prevent concurrent init (fixes double init)
+};
+
+function findCursorByRoundId(id) {
+  const i = VOTE_STATE.rounds.findIndex(r => r.id === id);
+  return i >= 0 ? i : 0;
+}
+
+function cleanupVoteChannels() {
+  if (!sb) return;
+  if (VOTE_STATE.votesChannel)  { sb.removeChannel(VOTE_STATE.votesChannel);  VOTE_STATE.votesChannel = null; }
+  if (VOTE_STATE.roundsChannel) { sb.removeChannel(VOTE_STATE.roundsChannel); VOTE_STATE.roundsChannel = null; }
+}
+
+async function loadVoteRounds() {
+  if (!sb) return;
+  const { data, error } = await sb
+    .from('vote_rounds')
+    .select('id, round_number, title, status, love_limit, hate_limit, created_at, closed_at')
+    .order('round_number', { ascending: false });
+  if (error) { console.error('loadVoteRounds', error); return; }
+  VOTE_STATE.rounds = data || [];
+}
+
+async function loadVoteRoundData(round) {
+  if (!sb || !round) return;
+  const [dishesRes, votesRes] = await Promise.all([
+    sb.from('dishes').select('id, name, position').eq('round_id', round.id).order('position'),
+    sb.from('dish_votes').select('user_id, dish_id, kind').eq('round_id', round.id),
+  ]);
+  if (dishesRes.error) console.error('loadDishes', dishesRes.error);
+  if (votesRes.error)  console.error('loadVotes',  votesRes.error);
+
+  VOTE_STATE.dishes  = dishesRes.data || [];
+  VOTE_STATE.tallies = new Map();
+  VOTE_STATE.myVotes = new Set();
+  const myId = currentUser?.id || null;
+  (votesRes.data || []).forEach(v => {
+    const t = VOTE_STATE.tallies.get(v.dish_id) || { love: 0, hate: 0 };
+    t[v.kind] = (t[v.kind] || 0) + 1;
+    VOTE_STATE.tallies.set(v.dish_id, t);
+    if (myId && v.user_id === myId) VOTE_STATE.myVotes.add(v.dish_id + ':' + v.kind);
+  });
+}
+
+function subscribeToVotes(roundId) {
+  if (!sb) return;
+  if (VOTE_STATE.votesChannel) {
+    sb.removeChannel(VOTE_STATE.votesChannel);
+    VOTE_STATE.votesChannel = null;
+  }
+  VOTE_STATE.votesChannel = sb.channel('dish-votes-' + roundId)
+    .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'dish_votes', filter: 'round_id=eq.' + roundId },
+        handleVoteRealtime)
+    .subscribe();
+}
+
+function subscribeToRounds() {
+  if (!sb || VOTE_STATE.roundsChannel) return;
+  VOTE_STATE.roundsChannel = sb.channel('vote-rounds-meta')
+    .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'vote_rounds' },
+        async () => {
+          // Preserve cursor by round_id to handle new-round inserts shifting indices
+          const prevId = getCurrentRound()?.id;
+          await loadVoteRounds();
+          VOTE_STATE.cursor = prevId ? findCursorByRoundId(prevId) : 0;
+          const r = getCurrentRound();
+          if (r) {
+            // If the round we're on changed identity (e.g. first round just appeared), reload its data
+            if (!prevId || r.id !== prevId) {
+              await loadVoteRoundData(r);
+              subscribeToVotes(r.id);
+            }
+          }
+          renderVotePage();
+        })
+    .subscribe();
+}
+
+function handleVoteRealtime(payload) {
+  const v = payload.new || payload.old;
+  if (!v) return;
+  // Ignore changes from my own user — already handled by optimistic update
+  if (currentUser && v.user_id === currentUser.id) return;
+  const t = VOTE_STATE.tallies.get(v.dish_id) || { love: 0, hate: 0 };
+  if (payload.eventType === 'INSERT') {
+    t[v.kind] = (t[v.kind] || 0) + 1;
+  } else if (payload.eventType === 'DELETE') {
+    t[v.kind] = Math.max(0, (t[v.kind] || 0) - 1);
+  }
+  VOTE_STATE.tallies.set(v.dish_id, t);
+  softUpdateTallies();   // surgical: don't re-render the whole grid (kills stamp animation flicker)
+}
+
+// Surgical DOM update for tally counts triggered by realtime events from other users.
+// Avoids re-running the stamp-pop animation on every external vote.
+function softUpdateTallies() {
+  const root = $('voteRoot');
+  if (!root) return;
+  root.querySelectorAll('.vote-toggle').forEach(btn => {
+    const dishId = btn.getAttribute('data-dish');
+    const kind   = btn.getAttribute('data-kind');
+    const t = VOTE_STATE.tallies.get(dishId) || {};
+    const cnt = btn.querySelector('.vt-count');
+    if (cnt) cnt.textContent = t[kind] || 0;
+  });
+  const aside = root.querySelector('.vote-board');
+  if (aside) aside.innerHTML = renderVoteBoard();
+}
+
+function getCurrentRound() { return VOTE_STATE.rounds[VOTE_STATE.cursor] || null; }
+
+function myQuotaUsed(kind) {
+  let n = 0;
+  VOTE_STATE.myVotes.forEach(k => { if (k.endsWith(':' + kind)) n++; });
+  return n;
+}
+
+async function toggleVote(dishId, kind) {
+  const round = getCurrentRound();
+  if (!round || round.status !== 'active') return;
+  if (!currentUser) { showToast('请先登录'); return; }
+
+  const opp    = kind === 'love' ? 'hate' : 'love';
+  const myKey  = dishId + ':' + kind;
+  const oppKey = dishId + ':' + opp;
+
+  // Lock guard: refuse re-entry while a write for either kind of this dish is in flight.
+  // Fixes rapid-double-click desync between client state and server.
+  if (VOTE_STATE.pending.has(myKey) || VOTE_STATE.pending.has(oppKey)) return;
+
+  const has    = VOTE_STATE.myVotes.has(myKey);
+  const hasOpp = VOTE_STATE.myVotes.has(oppKey);
+
+  if (!has) {
+    const limit = kind === 'love' ? round.love_limit : round.hate_limit;
+    if (myQuotaUsed(kind) >= limit) {
+      showToast('已达 ' + (kind === 'love' ? '想吃' : '不想吃') + ' 上限');
+      return;
+    }
+  }
+
+  // Acquire locks
+  VOTE_STATE.pending.add(myKey);
+  if (hasOpp) VOTE_STATE.pending.add(oppKey);
+
+  // Optimistic
+  const t = VOTE_STATE.tallies.get(dishId) || { love: 0, hate: 0 };
+  if (has) {
+    VOTE_STATE.myVotes.delete(myKey);
+    t[kind] = Math.max(0, t[kind] - 1);
+  } else {
+    VOTE_STATE.myVotes.add(myKey);
+    t[kind] = (t[kind] || 0) + 1;
+    if (hasOpp) {
+      VOTE_STATE.myVotes.delete(oppKey);
+      t[opp] = Math.max(0, (t[opp] || 0) - 1);
+    }
+  }
+  VOTE_STATE.tallies.set(dishId, t);
+  renderVotePage();
+
+  try {
+    if (has) {
+      const { error } = await sb.from('dish_votes').delete()
+        .eq('user_id', currentUser.id).eq('dish_id', dishId).eq('kind', kind);
+      if (error) throw error;
+    } else {
+      if (hasOpp) {
+        const { error: e1 } = await sb.from('dish_votes').delete()
+          .eq('user_id', currentUser.id).eq('dish_id', dishId).eq('kind', opp);
+        if (e1) throw e1;
+      }
+      const { error: e2 } = await sb.from('dish_votes').insert({
+        user_id: currentUser.id,
+        dish_id: dishId,
+        round_id: round.id,
+        kind,
+      });
+      if (e2) throw e2;
+    }
+  } catch (err) {
+    console.error('vote failed', err);
+    showToast('投票失败：' + (err.message || '请重试'));
+    await loadVoteRoundData(round);
+  } finally {
+    VOTE_STATE.pending.delete(myKey);
+    VOTE_STATE.pending.delete(oppKey);
+    renderVotePage();
+  }
+}
+
+function renderVotePage() {
+  const root = $('voteRoot');
+  if (!root) return;
+
+  if (!sb) {
+    root.innerHTML = '<div class="vote-state"><strong>未连接 Supabase</strong>请在 config.js 中填入配置</div>';
+    return;
+  }
+  if (!currentUser) {
+    root.innerHTML = '<div class="vote-state"><strong>请先登录</strong>登录后即可参与菜品投票（使用页面顶部的登录按钮）</div>';
+    return;
+  }
+  if (VOTE_STATE.rounds.length === 0) {
+    root.innerHTML = '<div class="vote-state"><strong>暂无投票期次</strong>等待管理员创建</div>';
+    return;
+  }
+
+  const round = getCurrentRound();
+  if (!round) { root.innerHTML = '<div class="vote-state">未知期次</div>'; return; }
+
+  const isActive = round.status === 'active';
+  const idx      = VOTE_STATE.cursor;
+  const canPrev  = idx < VOTE_STATE.rounds.length - 1;
+  const canNext  = idx > 0;
+
+  const badge = ({
+    active: '<span class="rs-badge active">进行中</span>',
+    closed: '<span class="rs-badge closed">已结束</span>',
+    draft:  '<span class="rs-badge draft">草稿</span>',
+  })[round.status] || '';
+
+  const loveUsed = myQuotaUsed('love');
+  const hateUsed = myQuotaUsed('hate');
+
+  root.innerHTML = `
+    <div class="round-switch">
+      <button class="rs-arrow" id="rsPrev" ${canPrev ? '' : 'disabled'} aria-label="上一期">‹</button>
+      <div class="rs-mid">
+        <div class="rs-num">第 ${round.round_number} 期 ${badge}</div>
+        <div class="rs-title">${escapeHtml(round.title || '')}</div>
+      </div>
+      <button class="rs-arrow" id="rsNext" ${canNext ? '' : 'disabled'} aria-label="下一期">›</button>
+    </div>
+    ${isActive
+      ? renderQuotaMeter(loveUsed, hateUsed, round)
+      : '<div class="vote-readonly-notice">该期已结束 · 仅查看榜单</div>'}
+    <div class="vote-grid">
+      <div class="vote-main">${renderMenuGrid(round, isActive)}</div>
+      <aside class="vote-board">${renderVoteBoard()}</aside>
+    </div>
+  `;
+
+  $('rsPrev')?.addEventListener('click', () => switchRound(idx + 1));
+  $('rsNext')?.addEventListener('click', () => switchRound(idx - 1));
+  root.querySelectorAll('.vote-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+      toggleVote(btn.getAttribute('data-dish'), btn.getAttribute('data-kind'));
+    });
+  });
+}
+
+function renderQuotaMeter(loveUsed, hateUsed, round) {
+  const dots = (n, lim) => Array.from({ length: lim }).map((_, i) =>
+    `<span class="qm-dot${i < n ? ' on' : ''}"></span>`).join('');
+  const loveFull = loveUsed >= round.love_limit;
+  const hateFull = hateUsed >= round.hate_limit;
+  return `
+    <div class="quota-meter">
+      <div class="qm-group love${loveFull ? ' full' : ''}">
+        <span class="qm-label">❤ 想吃</span>
+        <span class="qm-dots">${dots(loveUsed, round.love_limit)}</span>
+        <span class="qm-hint">${loveUsed}/${round.love_limit}</span>
+      </div>
+      <div class="qm-group hate${hateFull ? ' full' : ''}">
+        <span class="qm-label">✕ 不想吃</span>
+        <span class="qm-dots">${dots(hateUsed, round.hate_limit)}</span>
+        <span class="qm-hint">${hateUsed}/${round.hate_limit}</span>
+      </div>
+      <span class="qm-spacer"></span>
+      <span class="qm-hint">共 ${VOTE_STATE.dishes.length} 道</span>
+    </div>
+  `;
+}
+
+function renderMenuGrid(round, isActive) {
+  if (VOTE_STATE.dishes.length === 0) {
+    return '<div class="vote-state">这期没有菜</div>';
+  }
+  const loveUsed = myQuotaUsed('love');
+  const hateUsed = myQuotaUsed('hate');
+  const loveFull = loveUsed >= round.love_limit;
+  const hateFull = hateUsed >= round.hate_limit;
+
+  return '<div class="menu-grid">' + VOTE_STATE.dishes.map(d => {
+    const t = VOTE_STATE.tallies.get(d.id) || { love: 0, hate: 0 };
+    const myLove = VOTE_STATE.myVotes.has(d.id + ':love');
+    const myHate = VOTE_STATE.myVotes.has(d.id + ':hate');
+    const lockLove = VOTE_STATE.pending.has(d.id + ':love');
+    const lockHate = VOTE_STATE.pending.has(d.id + ':hate');
+    const disLove = !isActive || (loveFull && !myLove) || lockLove;
+    const disHate = !isActive || (hateFull && !myHate) || lockHate;
+    const cls = 'dish-card' + (myLove ? ' loved' : '') + (myHate ? ' hated' : '');
+    return `
+      <div class="${cls}" role="group" aria-label="${escapeHtml(d.name)}">
+        <div class="dn">${escapeHtml(d.name)}</div>
+        <div class="vt-row">
+          <button type="button" class="vote-toggle love${myLove ? ' on' : ''}"
+                  data-dish="${d.id}" data-kind="love"
+                  ${disLove ? 'disabled' : ''}
+                  role="switch" aria-checked="${myLove}"
+                  aria-label="想吃 ${escapeHtml(d.name)}">
+            ❤ <span class="vt-count">${t.love || 0}</span>
+          </button>
+          <button type="button" class="vote-toggle hate${myHate ? ' on' : ''}"
+                  data-dish="${d.id}" data-kind="hate"
+                  ${disHate ? 'disabled' : ''}
+                  role="switch" aria-checked="${myHate}"
+                  aria-label="不想吃 ${escapeHtml(d.name)}">
+            ✕ <span class="vt-count">${t.hate || 0}</span>
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('') + '</div>';
+}
+
+function renderVoteBoard() {
+  const top = (kind) => [...VOTE_STATE.dishes]
+    .map(d => ({ ...d, c: (VOTE_STATE.tallies.get(d.id) || {})[kind] || 0 }))
+    .filter(d => d.c > 0)
+    .sort((a, b) => b.c - a.c || a.position - b.position)
+    .slice(0, 5);
+  const lvs = top('love'), hts = top('hate');
+  const maxL = lvs[0]?.c || 1, maxH = hts[0]?.c || 1;
+
+  const medal = ['🥇','🥈','🥉'];
+  const row = (d, rank, max, kind) => {
+    const w = Math.round((d.c / max) * 100);
+    const mine = VOTE_STATE.myVotes.has(d.id + ':' + kind);
+    const rk = rank <= 3 ? medal[rank-1] : rank;
+    return `
+      <div class="vb-row r${rank}${mine ? ' mine' : ''}">
+        <span class="vb-rank">${rk}</span>
+        <span class="vb-name">${escapeHtml(d.name)}<span class="vb-bar"><i style="width:${w}%"></i></span></span>
+        <span class="vb-count">${d.c}</span>
+      </div>
+    `;
+  };
+  const list = (arr, max, kind) =>
+    arr.length === 0
+      ? '<div class="vb-empty">还没人投</div>'
+      : arr.map((d, i) => row(d, i + 1, max, kind)).join('');
+
+  return `
+    <div class="vb-section love">
+      <div class="vb-title love"><span class="vb-icon">❤</span>最想吃 Top 5</div>
+      ${list(lvs, maxL, 'love')}
+    </div>
+    <div class="vb-section hate">
+      <div class="vb-title hate"><span class="vb-icon">✕</span>最不想吃 Top 5</div>
+      ${list(hts, maxH, 'hate')}
+    </div>
+  `;
+}
+
+async function switchRound(toIdx) {
+  if (toIdx < 0 || toIdx >= VOTE_STATE.rounds.length) return;
+  VOTE_STATE.cursor = toIdx;
+  const r = getCurrentRound();
+  if (!r) return;
+  await loadVoteRoundData(r);
+  subscribeToVotes(r.id);
+  renderVotePage();
+}
+
+async function initVoteModule() {
+  if (VOTE_STATE.initing) return;       // dedup concurrent inits (auth listener + wire-up)
+  VOTE_STATE.initing = true;
+  try {
+    if (!sb) { renderVotePage(); return; }
+
+    // Logged-out: reset state, drop channels, render login prompt.
+    if (!currentUser) {
+      cleanupVoteChannels();
+      VOTE_STATE.rounds = [];
+      VOTE_STATE.dishes = [];
+      VOTE_STATE.myVotes.clear();
+      VOTE_STATE.tallies.clear();
+      VOTE_STATE.cursor = 0;
+      renderVotePage();
+      return;
+    }
+
+    subscribeToRounds();                 // always-on rounds metadata listener while logged in
+    await loadVoteRounds();
+    if (VOTE_STATE.rounds.length > 0) {
+      const activeIdx = VOTE_STATE.rounds.findIndex(r => r.status === 'active');
+      VOTE_STATE.cursor = activeIdx >= 0 ? activeIdx : 0;
+      const r = getCurrentRound();
+      if (r) {
+        await loadVoteRoundData(r);
+        subscribeToVotes(r.id);
+      }
+    }
+    renderVotePage();
+  } finally {
+    VOTE_STATE.initing = false;
+  }
+}
+
+/* ===== Tab routing ===== */
+function switchPage(name) {
+  if (!['draw','vote'].includes(name)) name = 'draw';
+  document.querySelectorAll('.page').forEach(p => {
+    p.classList.toggle('active', p.id === 'page' + name[0].toUpperCase() + name.slice(1));
+  });
+  document.querySelectorAll('.tab-nav button').forEach(btn => {
+    btn.setAttribute('aria-selected', btn.getAttribute('data-page') === name ? 'true' : 'false');
+  });
+  const titleEl = $('pageTitle'), subEl = $('pageSub');
+  if (titleEl && subEl) {
+    if (name === 'vote') {
+      titleEl.innerHTML = '今天 <span class="em">想</span> 吃什么';
+      subEl.textContent = '投出最想吃和最不想吃 · 实时榜单';
+    } else {
+      titleEl.innerHTML = '今天 <span class="em">谁</span> 下楼取饭';
+      subEl.textContent = '公平随机 · 取饭次数越多，被摇中概率越低';
+    }
+  }
+  if (location.hash !== '#' + name) {
+    history.replaceState(null, '', '#' + name);
+  }
+}
+function bindTabs() {
+  document.querySelectorAll('.tab-nav button').forEach(btn => {
+    btn.addEventListener('click', () => switchPage(btn.getAttribute('data-page')));
+  });
+  window.addEventListener('hashchange', () => {
+    switchPage((location.hash || '#draw').slice(1));
+  });
+  switchPage((location.hash || '#draw').slice(1));
+}
+
 /* ===== Wire up ===== */
 load();
 renderEmptyTickets(parseInt($('pickCount').value) || 4);
@@ -2204,13 +3039,17 @@ updateMeta();
     renderRoster();
     await loadHistory();   // load first so checkAuthorization sees the leaderboard
     await initAuth();
+    await initVoteModule();
   } else {
     renderRoster();
     renderAuth();
+    renderVotePage();
   }
   renderHistory();
   updateMeta();
 })();
+
+bindTabs();
 
 $('drawBtn').addEventListener('click', draw);
 $('copyBtn').addEventListener('click', copyWinners);
