@@ -1408,11 +1408,31 @@
   .qm-spacer { flex: 1; }
   .qm-hint { font-size: var(--t-xs); color: var(--ink-mute); }
 
-  /* Menu grid */
+  /* Menu grid — scrollable inside a fixed-height container.
+     Padding leaves room for the ::before stamps (top:-8px right:-8px) so they
+     don't get clipped by overflow when on the first row / rightmost column. */
   .menu-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
     gap: 14px;
+    max-height: min(72vh, 760px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 12px 12px 12px 4px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--line) transparent;
+  }
+  .menu-grid::-webkit-scrollbar { width: 8px; }
+  .menu-grid::-webkit-scrollbar-track { background: transparent; }
+  .menu-grid::-webkit-scrollbar-thumb {
+    background: var(--line);
+    border-radius: var(--r-pill);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  .menu-grid::-webkit-scrollbar-thumb:hover {
+    background: var(--ink-mute);
+    background-clip: padding-box;
   }
   .dish-card {
     position: relative;
