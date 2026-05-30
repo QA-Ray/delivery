@@ -3045,7 +3045,9 @@ function switchPage(name) {
     }
   }
   if (location.hash !== '#' + name) {
-    history.replaceState(null, '', '#' + name);
+    // Use window.history explicitly: the top-level `history` identifier is
+    // shadowed by a `let history = []` (draw records) earlier in this script.
+    window.history.replaceState(null, '', '#' + name);
   }
 }
 function bindTabs() {
