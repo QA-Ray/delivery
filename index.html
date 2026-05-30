@@ -1020,6 +1020,19 @@
     white-space: nowrap;
     font-weight: 500;
   }
+  .emp-tag {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 6px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--leaf);
+    background: var(--leaf-soft);
+    border-radius: var(--r-pill);
+    vertical-align: middle;
+    letter-spacing: 0.5px;
+    cursor: help;
+  }
   .emp-bar {
     height: 5px;
     background: var(--surface-sunk);
@@ -1757,7 +1770,7 @@
             <span class="guide-icon">🎲</span>
             <div class="guide-body">
               <div class="guide-title">怎么抽</div>
-              <div class="guide-desc">登录后点 <kbd>开始抽签</kbd>，默认抽 4 人。每个员工的下一次中签权重 = <code>1 / (1 + 历史次数 × 80)</code>，归一化后实时展示在「员工名单」面板里——被抽中过 1 次后权重就只剩 1/81，明显避让。</div>
+              <div class="guide-desc">登录后点 <kbd>开始抽签</kbd>，默认抽 4 人。每人下一次中签权重 = <code>1 / (1 + n × 80)</code>，<code>n = max(历史次数, 团队中位数)</code>——新人不会因为 n=0 而被狂抽，他们以"团队平均水平"加入抽签池，名单里挂「<span style="display:inline-block;padding:0 5px;background:var(--leaf-soft);color:var(--leaf);border-radius:8px;font-size:10px;font-weight:600;">新</span>」标记。被抽中超过中位数后才开始真正被避让。</div>
             </div>
           </div>
           <div class="guide-item">
@@ -2098,9 +2111,19 @@ function renderRoster() {
     return;
   }
   const counts = getDrawCounts();
+  const baseline = computeBaseline(counts, employees);
   const rows = employees.map(name => {
-    const c = counts[name] || 0;
-    return { name, count: c, weight: 1 / (1 + c * 80) };
+    const realC = counts[name] || 0;
+    const effC  = Math.max(realC, baseline);
+    return {
+      name,
+      count: realC,
+      // Only flag truly new hires (n=0). Anyone else below the median is
+      // still baseline-protected by the weight formula, but they aren't "new"
+      // in the colloquial sense — labeling them "新" would be misleading.
+      protected: realC === 0,
+      weight: 1 / (1 + effC * 80),
+    };
   });
   const totalWeight = rows.reduce((s, r) => s + r.weight, 0) || 1;
   rows.forEach(r => { r.prob = r.weight / totalWeight; });
@@ -2109,7 +2132,7 @@ function renderRoster() {
   el.className = 'roster emp-grid';
   el.innerHTML = rows.map(r => `
     <div class="emp-row">
-      <span class="emp-name">${escapeHtml(r.name)}</span>
+      <span class="emp-name">${escapeHtml(r.name)}${r.protected ? '<span class="emp-tag" title="新人起步保护：按团队中位数计算权重">新</span>' : ''}</span>
       <span class="emp-bar"><span class="emp-fill" style="--p:${(r.prob / maxProb * 100).toFixed(1)}%"></span></span>
       <span class="emp-prob">${(r.prob * 100).toFixed(1)}%</span>
       <span class="emp-count">${r.count} 次</span>
@@ -2140,10 +2163,29 @@ function getDrawCounts() {
   return counts;
 }
 
+// New-hire baseline protection.
+// New employees join with count=0, which would give them weight=1 against
+// veterans with weight=1/(1+n*80) ≈ 1/81 or lower — making them ~80×+ more
+// likely to be picked. To keep things fair, we treat any employee whose real
+// pick count is below the team median as if they had `median` picks. They
+// integrate at team-average parity, then start being avoided only once they
+// actually outpace the team.
+function computeBaseline(counts, names) {
+  if (!names || names.length === 0) return 0;
+  const arr = names.map(n => counts[n] || 0).sort((a, b) => a - b);
+  const mid = Math.floor(arr.length / 2);
+  return arr.length % 2 === 0
+    ? Math.floor((arr[mid - 1] + arr[mid]) / 2)
+    : arr[mid];
+}
+
 function weightedShuffle(pool, counts) {
-  // weight = 1 / (1 + n * 80): each prior pickup makes you less likely to be picked
+  // weight = 1 / (1 + n * 80), but with `n = max(realN, median)` so new
+  // joiners don't dominate (see computeBaseline above).
+  const baseline = computeBaseline(counts, pool);
   const items = pool.map(name => {
-    const n = counts[name] || 0;
+    const realN = counts[name] || 0;
+    const n = Math.max(realN, baseline);
     const weight = 1 / (1 + n * 80);
     return { name, key: -Math.log(Math.random()) / weight };
   });
