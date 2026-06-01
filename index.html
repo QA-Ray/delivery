@@ -2114,14 +2114,13 @@ function renderRoster() {
   const baseline = computeBaseline(counts, employees);
   const rows = employees.map(name => {
     const realC = counts[name] || 0;
-    const effC  = Math.max(realC, baseline);
+    // Match weightedShuffle: only n=0 gets baseline lift; everyone else uses
+    // their real count so 1次 ≠ 2次 in displayed probability.
+    const effC = realC === 0 ? baseline : realC;
     return {
       name,
       count: realC,
-      // Only flag truly new hires (n=0). Anyone else below the median is
-      // still baseline-protected by the weight formula, but they aren't "new"
-      // in the colloquial sense — labeling them "新" would be misleading.
-      protected: realC === 0,
+      protected: realC === 0,   // "新" tag only on truly new hires
       weight: 1 / (1 + effC * 80),
     };
   });
@@ -2180,12 +2179,14 @@ function computeBaseline(counts, names) {
 }
 
 function weightedShuffle(pool, counts) {
-  // weight = 1 / (1 + n * 80), but with `n = max(realN, median)` so new
-  // joiners don't dominate (see computeBaseline above).
+  // weight = 1 / (1 + n * 80).
+  // Only true new hires (realN === 0) get lifted to median, so they join at
+  // team-average parity. Everyone else keeps their real count — the avoidance
+  // gradient between n=1, n=2, n=3 etc. is preserved.
   const baseline = computeBaseline(counts, pool);
   const items = pool.map(name => {
     const realN = counts[name] || 0;
-    const n = Math.max(realN, baseline);
+    const n = realN === 0 ? baseline : realN;
     const weight = 1 / (1 + n * 80);
     return { name, key: -Math.log(Math.random()) / weight };
   });
