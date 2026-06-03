@@ -1770,7 +1770,7 @@
             <span class="guide-icon">🎲</span>
             <div class="guide-body">
               <div class="guide-title">怎么抽</div>
-              <div class="guide-desc">登录后点 <kbd>开始抽签</kbd>，默认抽 4 人。规则是<strong>严格"最少优先"</strong>：被抽次数最少的那一档没全部轮完之前，更高次数的人绝对不会被抽中。同一档内随机决定先后。新人 n=0 自动并入团队中位数那一档，挂「<span style="display:inline-block;padding:0 5px;background:var(--leaf-soft);color:var(--leaf);border-radius:8px;font-size:10px;font-weight:600;">新</span>」标记，不会被狂薅。名单上展示的百分比就是「<strong>这次按下抽签会不会被选到</strong>」的概率。</div>
+              <div class="guide-desc">登录后点 <kbd>开始抽签</kbd>，默认抽 4 人。规则是 <strong>"最少档强制优先 + 指数衰减溢出"</strong>：被抽次数最少的那一档<strong>无条件先抽光</strong>（同档随机）；如果抽签人数 &gt; 最少档人数，剩余名额按 <code>exp(-3×n)</code> 加权挑（2次比3次大约 20× 优先，3次比4次再 20×）——绝大多数时候顺序往上爬，偶尔保留一点意外。新人 n=0 自动并入团队中位数档，挂「<span style="display:inline-block;padding:0 5px;background:var(--leaf-soft);color:var(--leaf);border-radius:8px;font-size:10px;font-weight:600;">新</span>」标记。名单上的百分比 = 本次按下抽签会被选中的概率。</div>
             </div>
           </div>
           <div class="guide-item">
@@ -2174,55 +2174,79 @@ function computeBaseline(counts, names) {
     : arr[mid];
 }
 
+// Selection hybrid: strict minimum-first + exponential-weighted overflow.
+//   1) The lowest effective_n tier is ALWAYS picked first (uniform random
+//      within the tier).
+//   2) When the draw size exceeds the min tier, the overflow slots are
+//      filled by Efraimidis-Spirakis sampling on the remaining pool with
+//      weight = exp(-K × effN). K=3 makes a 2次 person ~20× more likely
+//      than a 3次 person — sharp, but not absolute, so the third tier can
+//      still surface occasionally.
+//   New hires (realN === 0) join at the team median tier.
+const DECAY_K = 3;
+
 function weightedShuffle(pool, counts) {
-  // Strict minimum-first selection (tiered round-robin).
-  // The lowest effective_n tier must be fully picked before anyone in the
-  // next tier is even considered. Ties within a tier broken uniformly at
-  // random. This guarantees 1次 always wins over 2次, 2次 always wins
-  // over 3次, etc. — eliminating the disparity issue where someone at 3次
-  // could be drawn while others still sit at 1次.
-  // New hires (realN === 0) are placed at the team median tier (so they
-  // don't dominate; they queue at "average-already-picked" priority).
   const baseline = computeBaseline(counts, pool);
-  const items = pool.map(name => {
+  const enriched = pool.map(name => {
     const realN = counts[name] || 0;
-    return {
-      name,
-      effN: realN === 0 ? baseline : realN,
-      rand: Math.random(),
-    };
+    return { name, effN: realN === 0 ? baseline : realN };
   });
-  items.sort((a, b) => a.effN - b.effN || a.rand - b.rand);
-  return items.map(x => x.name);
+  if (enriched.length === 0) return [];
+  const minEffN = Math.min(...enriched.map(x => x.effN));
+
+  // Tier 1: uniform random within the lowest effN bucket.
+  const minOrder = enriched
+    .filter(x => x.effN === minEffN)
+    .map(x => ({ name: x.name, key: Math.random() }))
+    .sort((a, b) => a.key - b.key)
+    .map(x => x.name);
+
+  // Rest: ES with exp(-K·effN) weights — soft tier ordering, occasional skips.
+  const restOrder = enriched
+    .filter(x => x.effN !== minEffN)
+    .map(x => ({
+      name: x.name,
+      key: -Math.log(Math.random()) / Math.exp(-DECAY_K * x.effN),
+    }))
+    .sort((a, b) => a.key - b.key)
+    .map(x => x.name);
+
+  return [...minOrder, ...restOrder];
 }
 
-// Per-draw inclusion probability for each name under strict tier-priority
-// semantics. Used by renderRoster to show "本次抽中概率" instead of a
-// stale weight-derived number that no longer matches reality.
+// Per-draw inclusion probability under the hybrid algorithm.
+//   - Min tier: prob = min(1, pickN / minTier.size)
+//   - Rest: ES approximation prob ≈ overflow × w_i / Σ w_j (only if overflow > 0)
 function computeDrawProbs(pool, counts, pickN) {
   const baseline = computeBaseline(counts, pool);
-  const tierMap = new Map();
-  pool.forEach(name => {
+  const enriched = pool.map(name => {
     const realN = counts[name] || 0;
-    const effN = realN === 0 ? baseline : realN;
-    if (!tierMap.has(effN)) tierMap.set(effN, []);
-    tierMap.get(effN).push(name);
+    return { name, effN: realN === 0 ? baseline : realN };
   });
-  const tiers = [...tierMap.entries()].sort((a, b) => a[0] - b[0]);
+  if (enriched.length === 0) return {};
+  const minEffN = Math.min(...enriched.map(x => x.effN));
+
+  const minTier = enriched.filter(x => x.effN === minEffN);
+  const rest    = enriched.filter(x => x.effN !== minEffN);
 
   const probs = {};
-  let remaining = pickN;
-  for (const [effN, names] of tiers) {
-    if (remaining <= 0) {
-      names.forEach(n => probs[n] = 0);
-    } else if (names.length <= remaining) {
-      names.forEach(n => probs[n] = 1);
-      remaining -= names.length;
-    } else {
-      const p = remaining / names.length;
-      names.forEach(n => probs[n] = p);
-      remaining = 0;
-    }
+  const minP = Math.min(1, pickN / minTier.length);
+  minTier.forEach(x => probs[x.name] = minP);
+
+  const overflow = Math.max(0, pickN - minTier.length);
+  if (overflow > 0 && rest.length > 0) {
+    let total = 0;
+    const w = {};
+    rest.forEach(x => {
+      const v = Math.exp(-DECAY_K * x.effN);
+      w[x.name] = v;
+      total += v;
+    });
+    rest.forEach(x => {
+      probs[x.name] = Math.min(1, overflow * w[x.name] / (total || 1));
+    });
+  } else {
+    rest.forEach(x => probs[x.name] = 0);
   }
   return probs;
 }
