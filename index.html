@@ -1770,7 +1770,7 @@
             <span class="guide-icon">🎲</span>
             <div class="guide-body">
               <div class="guide-title">怎么抽</div>
-              <div class="guide-desc">登录后点 <kbd>开始抽签</kbd>，默认抽 4 人。每人下一次中签权重 = <code>1 / (1 + n × 80)</code>，<code>n = max(历史次数, 团队中位数)</code>——新人不会因为 n=0 而被狂抽，他们以"团队平均水平"加入抽签池，名单里挂「<span style="display:inline-block;padding:0 5px;background:var(--leaf-soft);color:var(--leaf);border-radius:8px;font-size:10px;font-weight:600;">新</span>」标记。被抽中超过中位数后才开始真正被避让。</div>
+              <div class="guide-desc">登录后点 <kbd>开始抽签</kbd>，默认抽 4 人。规则是<strong>严格"最少优先"</strong>：被抽次数最少的那一档没全部轮完之前，更高次数的人绝对不会被抽中。同一档内随机决定先后。新人 n=0 自动并入团队中位数那一档，挂「<span style="display:inline-block;padding:0 5px;background:var(--leaf-soft);color:var(--leaf);border-radius:8px;font-size:10px;font-weight:600;">新</span>」标记，不会被狂薅。名单上展示的百分比就是「<strong>这次按下抽签会不会被选到</strong>」的概率。</div>
             </div>
           </div>
           <div class="guide-item">
@@ -2111,23 +2111,19 @@ function renderRoster() {
     return;
   }
   const counts = getDrawCounts();
-  const baseline = computeBaseline(counts, employees);
+  const pickN = parseInt($('pickCount').value) || 4;
+  const probs = computeDrawProbs(employees, counts, pickN);
   const rows = employees.map(name => {
     const realC = counts[name] || 0;
-    // Match weightedShuffle: only n=0 gets baseline lift; everyone else uses
-    // their real count so 1次 ≠ 2次 in displayed probability.
-    const effC = realC === 0 ? baseline : realC;
     return {
       name,
       count: realC,
-      protected: realC === 0,   // "新" tag only on truly new hires
-      weight: 1 / (1 + effC * 80),
+      protected: realC === 0,
+      prob: probs[name] || 0,
     };
   });
-  const totalWeight = rows.reduce((s, r) => s + r.weight, 0) || 1;
-  rows.forEach(r => { r.prob = r.weight / totalWeight; });
   rows.sort((a, b) => b.prob - a.prob || a.name.localeCompare(b.name));
-  const maxProb = rows[0].prob;
+  const maxProb = Math.max(rows[0]?.prob || 0, 0.0001);
   el.className = 'roster emp-grid';
   el.innerHTML = rows.map(r => `
     <div class="emp-row">
@@ -2179,19 +2175,56 @@ function computeBaseline(counts, names) {
 }
 
 function weightedShuffle(pool, counts) {
-  // weight = 1 / (1 + n * 80).
-  // Only true new hires (realN === 0) get lifted to median, so they join at
-  // team-average parity. Everyone else keeps their real count — the avoidance
-  // gradient between n=1, n=2, n=3 etc. is preserved.
+  // Strict minimum-first selection (tiered round-robin).
+  // The lowest effective_n tier must be fully picked before anyone in the
+  // next tier is even considered. Ties within a tier broken uniformly at
+  // random. This guarantees 1次 always wins over 2次, 2次 always wins
+  // over 3次, etc. — eliminating the disparity issue where someone at 3次
+  // could be drawn while others still sit at 1次.
+  // New hires (realN === 0) are placed at the team median tier (so they
+  // don't dominate; they queue at "average-already-picked" priority).
   const baseline = computeBaseline(counts, pool);
   const items = pool.map(name => {
     const realN = counts[name] || 0;
-    const n = realN === 0 ? baseline : realN;
-    const weight = 1 / (1 + n * 80);
-    return { name, key: -Math.log(Math.random()) / weight };
+    return {
+      name,
+      effN: realN === 0 ? baseline : realN,
+      rand: Math.random(),
+    };
   });
-  items.sort((a, b) => a.key - b.key);
+  items.sort((a, b) => a.effN - b.effN || a.rand - b.rand);
   return items.map(x => x.name);
+}
+
+// Per-draw inclusion probability for each name under strict tier-priority
+// semantics. Used by renderRoster to show "本次抽中概率" instead of a
+// stale weight-derived number that no longer matches reality.
+function computeDrawProbs(pool, counts, pickN) {
+  const baseline = computeBaseline(counts, pool);
+  const tierMap = new Map();
+  pool.forEach(name => {
+    const realN = counts[name] || 0;
+    const effN = realN === 0 ? baseline : realN;
+    if (!tierMap.has(effN)) tierMap.set(effN, []);
+    tierMap.get(effN).push(name);
+  });
+  const tiers = [...tierMap.entries()].sort((a, b) => a[0] - b[0]);
+
+  const probs = {};
+  let remaining = pickN;
+  for (const [effN, names] of tiers) {
+    if (remaining <= 0) {
+      names.forEach(n => probs[n] = 0);
+    } else if (names.length <= remaining) {
+      names.forEach(n => probs[n] = 1);
+      remaining -= names.length;
+    } else {
+      const p = remaining / names.length;
+      names.forEach(n => probs[n] = p);
+      remaining = 0;
+    }
+  }
+  return probs;
 }
 
 function renderEmptyTickets(n) {
@@ -3135,6 +3168,7 @@ $('pickCount').addEventListener('change', () => {
     renderEmptyTickets(n);
   }
   updateMeta();
+  renderRoster();    // probabilities depend on pickN under tier-priority
 });
 </script>
 </body>
