@@ -1033,6 +1033,18 @@
     letter-spacing: 0.5px;
     cursor: help;
   }
+  .emp-tag.tag-leave {
+    color: var(--ink-mute);
+    background: var(--surface-sunk);
+    font-weight: 500;
+  }
+  .emp-tag.tag-grace {
+    color: var(--accent-deep);
+    background: var(--accent-soft);
+  }
+  .emp-row.is-leave .emp-name { color: var(--ink-mute); }
+  .emp-row.is-leave .emp-fill { opacity: 0.2; }
+  .emp-row.is-leave .emp-prob { color: var(--ink-mute); font-weight: 400; }
   .emp-bar {
     height: 5px;
     background: var(--surface-sunk);
@@ -1798,7 +1810,7 @@
             <span class="guide-icon">📝</span>
             <div class="guide-body">
               <div class="guide-title">维护名单</div>
-              <div class="guide-desc">Supabase Studio → <code>employees</code> 表 Insert/Edit row：<code>name</code> 必填，<code>email</code> 可空（默认 <code>name@maskex.vip</code>），<code>can_draw</code> 控制能否点抽签按钮（默认 false，仅管理员勾上）。改完刷新页面即生效。</div>
+              <div class="guide-desc">Supabase Studio → <code>employees</code> 表 Insert/Edit row：<code>name</code> 必填，<code>email</code> 可空（默认 <code>name@maskex.vip</code>），<code>can_draw</code> 控制能否点抽签按钮（默认 false）。<strong>请假</strong>填 <code>leave_until = YYYY-MM-DD</code>（最后在岗日），休假期间自动从抽签池剔除，挂「<span style="display:inline-block;padding:0 5px;background:var(--surface-sunk);color:var(--ink-mute);border-radius:8px;font-size:10px;">休假至 MM/DD</span>」标签；到期后自动恢复，14 天宽限期内权重并入中位数（防止"补课"狂薅），挂「<span style="display:inline-block;padding:0 5px;background:var(--accent-soft);color:var(--accent-deep);border-radius:8px;font-size:10px;font-weight:600;">归</span>」标签。改完刷新即生效。</div>
             </div>
           </div>
         </div>
@@ -2051,10 +2063,16 @@ async function signOut() {
 
 async function loadEmployees() {
   if (!sb) return;
-  const { data, error } = await sb
+  // Try with leave_until first; fall back to the legacy select if the column
+  // doesn't exist yet (so the app still works pre-migration).
+  let { data, error } = await sb
     .from('employees')
-    .select('name, email, can_draw')
+    .select('name, email, can_draw, leave_until')
     .order('id');
+  if (error && error.code === '42703') {  // undefined_column
+    const r = await sb.from('employees').select('name, email, can_draw').order('id');
+    data = r.data; error = r.error;
+  }
   if (error) {
     console.error(error);
     showToast('读取员工名单失败：' + error.message);
@@ -2064,8 +2082,31 @@ async function loadEmployees() {
     name: r.name,
     email: r.email || null,
     can_draw: !!r.can_draw,
+    leave_until: r.leave_until || null,
   }));
-  employees = _rawEmployees.map(e => e.name);
+  // Draw pool excludes anyone currently on leave.
+  employees = _rawEmployees
+    .filter(e => leaveStatus(e.leave_until) !== 'on_leave')
+    .map(e => e.name);
+}
+
+// Classify an employee's leave state from their leave_until date.
+//   'on_leave' — leave_until is today or future: excluded from draw pool.
+//   'grace'    — leave_until was within the last 14 days: returning, lift
+//                effN to baseline (median) so they don't get hammered after
+//                a long absence pushed them below the team's new median.
+//   'normal'   — no leave, or grace expired: standard rules.
+function leaveStatus(leaveUntil) {
+  if (!leaveUntil) return 'normal';
+  const today = new Date().toISOString().slice(0, 10);
+  if (leaveUntil >= today) return 'on_leave';
+  const days = Math.floor((Date.parse(today) - Date.parse(leaveUntil)) / 86400000);
+  return days <= 14 ? 'grace' : 'normal';
+}
+
+function getLeaveUntil(name) {
+  const e = _rawEmployees.find(x => x.name === name);
+  return e ? e.leave_until : null;
 }
 
 async function loadHistory() {
@@ -2104,8 +2145,8 @@ function toggleSection(id) {
 
 function renderRoster() {
   const el = $('rosterChips');
-  $('rosterCount').textContent = employees.length;
-  if (employees.length === 0) {
+  $('rosterCount').textContent = _rawEmployees.length;
+  if (_rawEmployees.length === 0) {
     el.className = 'roster';
     el.innerHTML = '<div class="roster-empty">未在数据库中找到名单</div>';
     return;
@@ -2113,26 +2154,54 @@ function renderRoster() {
   const counts = getDrawCounts();
   const pickN = parseInt($('pickCount').value) || 4;
   const probs = computeDrawProbs(employees, counts, pickN);
-  const rows = employees.map(name => {
+
+  const onLeave = _rawEmployees.filter(e => leaveStatus(e.leave_until) === 'on_leave');
+
+  const activeRows = employees.map(name => {
     const realC = counts[name] || 0;
+    const lu = getLeaveUntil(name);
+    const grace = leaveStatus(lu) === 'grace';
     return {
       name,
       count: realC,
       protected: realC === 0,
+      grace,                              // recently returned, getting baseline lift
       prob: probs[name] || 0,
+      onLeave: false,
     };
   });
-  rows.sort((a, b) => b.prob - a.prob || a.name.localeCompare(b.name));
-  const maxProb = Math.max(rows[0]?.prob || 0, 0.0001);
+  activeRows.sort((a, b) => b.prob - a.prob || a.name.localeCompare(b.name));
+
+  const leaveRows = onLeave.map(e => ({
+    name: e.name,
+    count: counts[e.name] || 0,
+    onLeave: true,
+    leave_until: e.leave_until,
+    prob: 0,
+  }));
+
+  const rows = [...activeRows, ...leaveRows];
+  const maxProb = Math.max(activeRows[0]?.prob || 0, 0.0001);
   el.className = 'roster emp-grid';
-  el.innerHTML = rows.map(r => `
-    <div class="emp-row">
-      <span class="emp-name">${escapeHtml(r.name)}${r.protected ? '<span class="emp-tag" title="新人起步保护：按团队中位数计算权重">新</span>' : ''}</span>
+  el.innerHTML = rows.map(r => {
+    let nameSuffix = '';
+    if (r.onLeave) {
+      const md = r.leave_until ? r.leave_until.slice(5).replace('-', '/') : '';
+      nameSuffix = `<span class="emp-tag tag-leave" title="休假中，不参与抽签">休假至 ${md}</span>`;
+    } else if (r.protected) {
+      nameSuffix = '<span class="emp-tag" title="新人起步保护：按团队中位数计算权重">新</span>';
+    } else if (r.grace) {
+      nameSuffix = '<span class="emp-tag tag-grace" title="复工 14 天内：权重拉至团队中位数，不被狂薅">归</span>';
+    }
+    const rowCls = r.onLeave ? 'emp-row is-leave' : 'emp-row';
+    return `
+    <div class="${rowCls}">
+      <span class="emp-name">${escapeHtml(r.name)}${nameSuffix}</span>
       <span class="emp-bar"><span class="emp-fill" style="--p:${(r.prob / maxProb * 100).toFixed(1)}%"></span></span>
-      <span class="emp-prob">${(r.prob * 100).toFixed(1)}%</span>
+      <span class="emp-prob">${r.onLeave ? '—' : (r.prob * 100).toFixed(1) + '%'}</span>
       <span class="emp-count">${r.count} 次</span>
     </div>
-  `).join('');
+  `;}).join('');
   // animate bars from 0 → target
   requestAnimationFrame(() => {
     el.querySelectorAll('.emp-fill').forEach(fill => {
@@ -2185,11 +2254,19 @@ function computeBaseline(counts, names) {
 //   New hires (realN === 0) join at the team median tier.
 const DECAY_K = 3;
 
+// Effective n for selection/probability. Pulls in new-hire and post-leave logic.
+function effectiveN(name, realN, baseline) {
+  if (realN === 0) return baseline;                       // brand-new hire
+  const st = leaveStatus(getLeaveUntil(name));
+  if (st === 'grace') return Math.max(realN, baseline);   // returning from leave
+  return realN;                                            // normal
+}
+
 function weightedShuffle(pool, counts) {
   const baseline = computeBaseline(counts, pool);
   const enriched = pool.map(name => {
     const realN = counts[name] || 0;
-    return { name, effN: realN === 0 ? baseline : realN };
+    return { name, effN: effectiveN(name, realN, baseline) };
   });
   if (enriched.length === 0) return [];
   const minEffN = Math.min(...enriched.map(x => x.effN));
@@ -2221,7 +2298,7 @@ function computeDrawProbs(pool, counts, pickN) {
   const baseline = computeBaseline(counts, pool);
   const enriched = pool.map(name => {
     const realN = counts[name] || 0;
-    return { name, effN: realN === 0 ? baseline : realN };
+    return { name, effN: effectiveN(name, realN, baseline) };
   });
   if (enriched.length === 0) return {};
   const minEffN = Math.min(...enriched.map(x => x.effN));
