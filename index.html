@@ -2305,6 +2305,21 @@ function computeDrawProbs(pool, counts, pickN) {
   }
   const probs = {};
   pool.forEach(n => probs[n] = hits[n] / TRIALS);
+
+  // Smooth Monte Carlo noise: people with identical effN have identical
+  // true probability — same weight, symmetric algorithm. Average within
+  // each effN group so the displayed % matches that symmetry exactly.
+  const groups = new Map();
+  pool.forEach(name => {
+    const realN = counts[name] || 0;
+    const effN = effectiveN(name, realN, baseline);
+    if (!groups.has(effN)) groups.set(effN, []);
+    groups.get(effN).push(name);
+  });
+  for (const names of groups.values()) {
+    const avg = names.reduce((s, n) => s + probs[n], 0) / names.length;
+    names.forEach(n => probs[n] = avg);
+  }
   return probs;
 }
 
