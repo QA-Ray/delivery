@@ -2063,15 +2063,17 @@ async function signOut() {
 
 async function loadEmployees() {
   if (!sb) return;
-  // Try with leave_until first; fall back to the legacy select if the column
+  // Try with all optional columns; fall back progressively if a column
   // doesn't exist yet (so the app still works pre-migration).
-  let { data, error } = await sb
-    .from('employees')
-    .select('name, email, can_draw, leave_until')
-    .order('id');
-  if (error && error.code === '42703') {  // undefined_column
-    const r = await sb.from('employees').select('name, email, can_draw').order('id');
-    data = r.data; error = r.error;
+  const selects = [
+    'name, email, can_draw, leave_until, seed_count',
+    'name, email, can_draw, leave_until',
+    'name, email, can_draw',
+  ];
+  let data, error;
+  for (const sel of selects) {
+    const r = await sb.from('employees').select(sel).order('id');
+    if (!r.error || r.error.code !== '42703') { data = r.data; error = r.error; break; }
   }
   if (error) {
     console.error(error);
@@ -2083,11 +2085,17 @@ async function loadEmployees() {
     email: r.email || null,
     can_draw: !!r.can_draw,
     leave_until: r.leave_until || null,
+    seed_count: r.seed_count ?? null,
   }));
   // Draw pool excludes anyone currently on leave.
   employees = _rawEmployees
     .filter(e => leaveStatus(e.leave_until) !== 'on_leave')
     .map(e => e.name);
+}
+
+function getSeedCount(name) {
+  const e = _rawEmployees.find(x => x.name === name);
+  return e && e.seed_count != null ? e.seed_count : null;
 }
 
 // Classify an employee's leave state from their leave_until date.
@@ -2161,10 +2169,12 @@ function renderRoster() {
     const realC = counts[name] || 0;
     const lu = getLeaveUntil(name);
     const grace = leaveStatus(lu) === 'grace';
+    const seed = getSeedCount(name);
     return {
       name,
       count: realC,
-      protected: realC === 0,
+      // "新" while seed lift is still active OR brand-new (no seed yet).
+      protected: (seed != null && realC < seed) || (seed == null && realC === 0),
       grace,                              // recently returned, getting baseline lift
       prob: probs[name] || 0,
       onLeave: false,
@@ -2189,7 +2199,7 @@ function renderRoster() {
       const md = r.leave_until ? r.leave_until.slice(5).replace('-', '/') : '';
       nameSuffix = `<span class="emp-tag tag-leave" title="休假中，不参与抽签">休假至 ${md}</span>`;
     } else if (r.protected) {
-      nameSuffix = '<span class="emp-tag" title="新人起步保护：按团队中位数计算权重">新</span>';
+      nameSuffix = '<span class="emp-tag" title="新人起步保护：effN 不低于入职时中位数，直到追上才解除">新</span>';
     } else if (r.grace) {
       nameSuffix = '<span class="emp-tag tag-grace" title="复工 14 天内：权重拉至团队中位数，不被狂薅">归</span>';
     }
@@ -2255,10 +2265,23 @@ const DECAY_K = 1.5;
 
 // Effective n for selection/probability. Pulls in new-hire and post-leave logic.
 function effectiveN(name, realN, baseline) {
-  if (realN === 0) return baseline;                       // brand-new hire
+  // Persistent seed: snapshot of team median taken when the employee joined.
+  // Lifts effN until realN catches up — self-clearing once max() = realN.
+  // This is what keeps a new hire from suddenly jumping into the highest-
+  // priority "1次" tier after their very first pick.
+  const seed = getSeedCount(name);
+  if (seed != null) return Math.max(realN, seed);
+
+  // Backwards-compat for rows without a seed_count: brand-new hires (realN=0)
+  // get a one-shot lift to current baseline, but will reset on first pick
+  // (until they're given a seed_count).
+  if (realN === 0) return baseline;
+
+  // Post-leave grace lift
   const st = leaveStatus(getLeaveUntil(name));
-  if (st === 'grace') return Math.max(realN, baseline);   // returning from leave
-  return realN;                                            // normal
+  if (st === 'grace') return Math.max(realN, baseline);
+
+  return realN;
 }
 
 function weightedShuffle(pool, counts) {
