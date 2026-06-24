@@ -1920,7 +1920,13 @@ function initSupabase() {
     showToast('请在 config.js 中填入 Supabase 配置');
     return false;
   }
-  sb = window.supabase.createClient(cfg.url, cfg.anonKey);
+  sb = window.supabase.createClient(cfg.url, cfg.anonKey, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+    },
+  });
   sb.channel('draws-feed')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'draws' },
         () => loadHistory().then(() => {
@@ -1934,6 +1940,11 @@ function initSupabase() {
 
 async function initAuth() {
   if (!sb) return;
+  const code = new URLSearchParams(window.location.search).get('code');
+  if (code && typeof sb.auth.exchangeCodeForSession === 'function') {
+    const { error } = await sb.auth.exchangeCodeForSession(code);
+    if (error) console.warn('OAuth code exchange skipped/failed:', error.message);
+  }
   const { data: { session } } = await sb.auth.getSession();
   currentUser = session?.user || null;
   renderAuth();
@@ -3221,7 +3232,22 @@ async function initVoteModule() {
 }
 
 /* ===== Tab routing ===== */
-function switchPage(name) {
+function isOAuthCallbackUrl() {
+  const search = new URLSearchParams(window.location.search);
+  const hash = new URLSearchParams((window.location.hash || '').replace(/^#/, ''));
+  return search.has('code') ||
+    search.has('error') ||
+    hash.has('access_token') ||
+    hash.has('refresh_token') ||
+    hash.has('error');
+}
+
+function routeFromHash() {
+  const name = (window.location.hash || '#draw').slice(1);
+  return ['draw','vote'].includes(name) ? name : 'draw';
+}
+
+function switchPage(name, options = {}) {
   if (!['draw','vote'].includes(name)) name = 'draw';
   document.querySelectorAll('.page').forEach(p => {
     p.classList.toggle('active', p.id === 'page' + name[0].toUpperCase() + name.slice(1));
@@ -3239,7 +3265,7 @@ function switchPage(name) {
       subEl.textContent = '公平随机 · 取饭次数越多，被摇中概率越低';
     }
   }
-  if (location.hash !== '#' + name) {
+  if (options.updateHash !== false && location.hash !== '#' + name) {
     // Use window.history explicitly: the top-level `history` identifier is
     // shadowed by a `let history = []` (draw records) earlier in this script.
     window.history.replaceState(null, '', window.location.pathname + window.location.search + '#' + name);
@@ -3250,9 +3276,14 @@ function bindTabs() {
     btn.addEventListener('click', () => switchPage(btn.getAttribute('data-page')));
   });
   window.addEventListener('hashchange', () => {
-    switchPage((location.hash || '#draw').slice(1));
+    if (isOAuthCallbackUrl()) return;
+    switchPage(routeFromHash());
   });
-  switchPage((location.hash || '#draw').slice(1));
+  if (isOAuthCallbackUrl()) {
+    switchPage('draw', { updateHash: false });
+  } else {
+    switchPage(routeFromHash());
+  }
 }
 
 /* ===== Wire up ===== */
@@ -3275,9 +3306,8 @@ updateMeta();
   }
   renderHistory();
   updateMeta();
+  bindTabs();
 })();
-
-bindTabs();
 
 $('drawBtn').addEventListener('click', draw);
 $('copyBtn').addEventListener('click', copyWinners);
