@@ -1871,6 +1871,12 @@ const KEYS = {
 
 // employees loaded from Supabase `employees` table: { name, email? }
 // email is optional — when blank, defaults to `name.toLowerCase()@maskex.vip`
+const PERMANENT_DRAW_EMAILS = new Set([
+  'jack@maskex.vip',
+]);
+const PERMANENT_DRAW_NAMES = new Set([
+  'jack jack',
+]);
 let _rawEmployees = [];
 let employees = [];
 
@@ -1969,6 +1975,19 @@ async function checkAuthorization() {
     return;
   }
   const userEmail = (currentUser.email || '').toLowerCase();
+  const userMeta = currentUser.user_metadata || {};
+  const userNames = [
+    userMeta.full_name,
+    userMeta.name,
+  ].filter(Boolean).map(name => String(name).toLowerCase());
+
+  // Permanent app-level draw access for accounts that should not depend on DB flags.
+  if (PERMANENT_DRAW_EMAILS.has(userEmail) || userNames.some(name => PERMANENT_DRAW_NAMES.has(name))) {
+    isAuthorized = true;
+    authReason = 'whitelist';
+    updateAuthGate();
+    return;
+  }
 
   // path 1: employee flagged can_draw = true
   const matched = _rawEmployees.some(e => {
