@@ -2133,6 +2133,26 @@ function getSeedCount(name) {
   return e && e.seed_count != null ? e.seed_count : null;
 }
 
+async function autoSeedNewHires() {
+  if (!sb) return;
+  const unseeded = _rawEmployees.filter(e => e.seed_count == null);
+  if (unseeded.length === 0) return;
+  const counts = getDrawCounts();
+  const baseline = computeBaseline(counts, employees);
+  if (baseline <= 0) return;
+  for (const e of unseeded) {
+    const { error } = await sb
+      .from('employees')
+      .update({ seed_count: baseline })
+      .eq('name', e.name);
+    if (error) {
+      console.warn('autoSeed failed for', e.name, error.message);
+    } else {
+      e.seed_count = baseline;
+    }
+  }
+}
+
 // Classify an employee's leave state from their leave_until date.
 //   'on_leave' — leave_until is today or future: excluded from draw pool.
 //   'grace'    — leave_until was within the last 14 days: returning, lift
@@ -3321,6 +3341,7 @@ updateMeta();
     await loadEmployees();
     renderRoster();
     await loadHistory();   // load first so checkAuthorization sees the leaderboard
+    await autoSeedNewHires();
     await initAuth();
     await initVoteModule();
   } else {
