@@ -1782,7 +1782,7 @@
             <span class="guide-icon">🎲</span>
             <div class="guide-body">
               <div class="guide-title">怎么抽</div>
-              <div class="guide-desc">登录后点 <kbd>开始抽签</kbd>，默认抽 4 人。每人权重 = <code>exp(-1.5 × n)</code>，1次 vs 2次 ≈ 4.5:1 优先——1次的人大概率被抽到，但 2次、3次时不时也能冒出来，保留悬念。新人 n=0 自动并入团队中位数档，挂「<span style="display:inline-block;padding:0 5px;background:var(--leaf-soft);color:var(--leaf);border-radius:8px;font-size:10px;font-weight:600;">新</span>」标记。名单上的百分比 = 本次按下抽签会被选中的概率（模拟法 1000 次跑出来的经验值）。</div>
+              <div class="guide-desc">登录后点 <kbd>开始抽签</kbd>，默认抽 4 人。每人权重 = <code>exp(-1.5 × n)</code>，其中 <code>n = 真实次数 + 初始次数</code>。老员工初始次数 = 0；新人添加到名单时，按当时团队有效次数中位数写入 <code>seed_count</code> 作为初始次数，和大家同一起跑线——系统跑 10 年老员工上万次，新人也不用去补那上万次真实抽签。每月新人各自冻自己的初始值。挂「<span style="display:inline-block;padding:0 5px;background:var(--leaf-soft);color:var(--leaf);border-radius:8px;font-size:10px;font-weight:600;">新</span>」标记。名单上的百分比 = 本次按下抽签会被选中的概率（模拟法 1000 次跑出来的经验值）。</div>
             </div>
           </div>
           <div class="guide-item">
@@ -1810,7 +1810,7 @@
             <span class="guide-icon">📝</span>
             <div class="guide-body">
               <div class="guide-title">维护名单</div>
-              <div class="guide-desc">Supabase Studio → <code>employees</code> 表 Insert/Edit row：<code>name</code> 必填，<code>email</code> 可空（默认 <code>name@maskex.vip</code>），<code>can_draw</code> 控制能否点抽签按钮（默认 false）。<strong>请假</strong>填 <code>leave_until = YYYY-MM-DD</code>（最后在岗日），休假期间自动从抽签池剔除，挂「<span style="display:inline-block;padding:0 5px;background:var(--surface-sunk);color:var(--ink-mute);border-radius:8px;font-size:10px;">休假至 MM/DD</span>」标签；到期后自动恢复，14 天宽限期内权重并入中位数（防止"补课"狂薅），挂「<span style="display:inline-block;padding:0 5px;background:var(--accent-soft);color:var(--accent-deep);border-radius:8px;font-size:10px;font-weight:600;">归</span>」标签。改完刷新即生效。</div>
+              <div class="guide-desc">Supabase Studio → <code>employees</code> 表 Insert/Edit row：<code>name</code> 必填，<code>email</code> 可空（默认 <code>name@maskex.vip</code>），<code>can_draw</code> 控制能否点抽签按钮（默认 false）。老员工 <code>seed_count = 0</code>（或空）；新人的 <code>seed_count</code> = 添加时团队有效次数中位数（也可留空，仍为 0 次时刷新页面会自动写入）。之后概率按 <code>真实次数 + seed_count</code> 计算。<strong>请假</strong>填 <code>leave_until = YYYY-MM-DD</code>（最后在岗日），休假期间自动从抽签池剔除，挂「<span style="display:inline-block;padding:0 5px;background:var(--surface-sunk);color:var(--ink-mute);border-radius:8px;font-size:10px;">休假至 MM/DD</span>」标签；到期后自动恢复，14 天宽限期内权重并入中位数（防止"补课"狂薅），挂「<span style="display:inline-block;padding:0 5px;background:var(--accent-soft);color:var(--accent-deep);border-radius:8px;font-size:10px;font-weight:600;">归</span>」标签。改完刷新即生效。</div>
             </div>
           </div>
         </div>
@@ -2133,23 +2133,52 @@ function getSeedCount(name) {
   return e && e.seed_count != null ? e.seed_count : null;
 }
 
+// Current new hires only. Everyone else has initial = 0.
+const NEW_HIRE_INITIAL = {
+  denis: 6,
+  vikin: 6,
+  perry: 6,
+};
+
+function isNamedNewHire(name) {
+  return Object.prototype.hasOwnProperty.call(
+    NEW_HIRE_INITIAL,
+    String(name || '').toLowerCase()
+  );
+}
+
+// n = real + initial. Named new hires get a fixed starting offset;
+// all other roster members are veterans with initial 0.
+function getInitialCount(name) {
+  const key = String(name || '').toLowerCase();
+  if (Object.prototype.hasOwnProperty.call(NEW_HIRE_INITIAL, key)) {
+    return NEW_HIRE_INITIAL[key];
+  }
+  return 0;
+}
+
+function needsInitialSeed(name, counts) {
+  // Only auto-seed named new hires if their DB seed is still missing.
+  // Do NOT treat every 0-draw veteran as a new hire.
+  return isNamedNewHire(name)
+    && getSeedCount(name) == null
+    && (counts[name] || 0) === 0;
+}
+
+// Persist seed_count for named new hires that still lack a DB value.
 async function autoSeedNewHires() {
   if (!sb) return;
-  const unseeded = _rawEmployees.filter(e => e.seed_count == null);
-  if (unseeded.length === 0) return;
   const counts = getDrawCounts();
-  const baseline = computeBaseline(counts, employees);
-  if (baseline <= 0) return;
+  const unseeded = _rawEmployees.filter(e => needsInitialSeed(e.name, counts));
+  if (unseeded.length === 0) return;
   for (const e of unseeded) {
+    const initial = getInitialCount(e.name);
+    e.seed_count = initial;
     const { error } = await sb
       .from('employees')
-      .update({ seed_count: baseline })
+      .update({ seed_count: initial })
       .eq('name', e.name);
-    if (error) {
-      console.warn('autoSeed failed for', e.name, error.message);
-    } else {
-      e.seed_count = baseline;
-    }
+    if (error) console.warn('autoSeed failed for', e.name, error.message);
   }
 }
 
@@ -2224,12 +2253,11 @@ function renderRoster() {
     const realC = counts[name] || 0;
     const lu = getLeaveUntil(name);
     const grace = leaveStatus(lu) === 'grace';
-    const seed = getSeedCount(name);
     return {
       name,
       count: realC,
-      // "新" while seed lift is still active OR brand-new (no seed yet).
-      protected: (seed != null && realC < seed) || (seed == null && realC === 0),
+      // "新" only on the named new-hire list.
+      protected: isNamedNewHire(name),
       grace,                              // recently returned, getting baseline lift
       prob: probs[name] || 0,
       onLeave: false,
@@ -2254,7 +2282,7 @@ function renderRoster() {
       const md = r.leave_until ? r.leave_until.slice(5).replace('-', '/') : '';
       nameSuffix = `<span class="emp-tag tag-leave" title="休假中，不参与抽签">休假至 ${md}</span>`;
     } else if (r.protected) {
-      nameSuffix = '<span class="emp-tag" title="新人起步保护：effN 不低于入职时中位数，直到追上才解除">新</span>';
+      nameSuffix = '<span class="emp-tag" title="新人：入职时写入初始次数，有效次数 = 真实 + 初始">新</span>';
     } else if (r.grace) {
       nameSuffix = '<span class="emp-tag tag-grace" title="复工 14 天内：权重拉至团队中位数，不被狂薅">归</span>';
     }
@@ -2292,20 +2320,28 @@ function getDrawCounts() {
   return counts;
 }
 
-// New-hire baseline protection.
-// New employees join with count=0, which would give them weight=1 against
-// veterans with weight=1/(1+n*80) ≈ 1/81 or lower — making them ~80×+ more
-// likely to be picked. To keep things fair, we treat any employee whose real
-// pick count is below the team median as if they had `median` picks. They
-// integrate at team-average parity, then start being avoided only once they
-// actually outpace the team.
-function computeBaseline(counts, names) {
-  if (!names || names.length === 0) return 0;
-  const arr = names.map(n => counts[n] || 0).sort((a, b) => a - b);
+// Initial-count model:
+//   n = real draws + initial (seed_count)
+// Veterans: initial = 0
+// New hires: initial = team median of (real + initial) at add time
+// So a hire joining when the team sits at ~10000 starts at 10000, then
+// each real draw adds 1 — same starting line, no need to "make up" 10000 draws.
+function medianOf(values) {
+  if (!values || values.length === 0) return 0;
+  const arr = [...values].sort((a, b) => a - b);
   const mid = Math.floor(arr.length / 2);
   return arr.length % 2 === 0
     ? Math.floor((arr[mid - 1] + arr[mid]) / 2)
     : arr[mid];
+}
+
+function computeTeamEffectiveBaseline(counts, names) {
+  const list = names || [];
+  // Exclude brand-new rows about to receive an initial (0 real, 0 initial)
+  // so they don't pull the median down for their own cohort.
+  const established = list.filter(n => !needsInitialSeed(n, counts));
+  const pool = established.length > 0 ? established : list;
+  return medianOf(pool.map(n => (counts[n] || 0) + getInitialCount(n)));
 }
 
 // Pure exponential-weighted selection (Efraimidis-Spirakis).
@@ -2318,29 +2354,19 @@ function computeBaseline(counts, names) {
 //   K=3.0  → 1次 vs 2次 ≈ 20:1    (effectively strict-tier)
 const DECAY_K = 1.5;
 
-// Effective n for selection/probability. Pulls in new-hire and post-leave logic.
+// Effective n for selection/probability: real + initial, with leave grace.
 function effectiveN(name, realN, baseline) {
-  // Persistent seed: snapshot of team median taken when the employee joined.
-  // Lifts effN until realN catches up — self-clearing once max() = realN.
-  // This is what keeps a new hire from suddenly jumping into the highest-
-  // priority "1次" tier after their very first pick.
-  const seed = getSeedCount(name);
-  if (seed != null) return Math.max(realN, seed);
+  let n = realN + getInitialCount(name);
 
-  // Backwards-compat for rows without a seed_count: brand-new hires (realN=0)
-  // get a one-shot lift to current baseline, but will reset on first pick
-  // (until they're given a seed_count).
-  if (realN === 0) return baseline;
-
-  // Post-leave grace lift
+  // Post-leave grace lift to current team effective baseline
   const st = leaveStatus(getLeaveUntil(name));
-  if (st === 'grace') return Math.max(realN, baseline);
+  if (st === 'grace') n = Math.max(n, baseline);
 
-  return realN;
+  return n;
 }
 
 function weightedShuffle(pool, counts) {
-  const baseline = computeBaseline(counts, pool);
+  const baseline = computeTeamEffectiveBaseline(counts, pool);
   const items = pool.map(name => {
     const realN = counts[name] || 0;
     const effN = effectiveN(name, realN, baseline);
@@ -2361,7 +2387,7 @@ function weightedShuffle(pool, counts) {
 // hits. Pool size is ~30, trivial in browser (~5ms).
 function computeDrawProbs(pool, counts, pickN) {
   if (pool.length === 0) return {};
-  const baseline = computeBaseline(counts, pool);
+  const baseline = computeTeamEffectiveBaseline(counts, pool);
   const weights = {};
   pool.forEach(name => {
     const realN = counts[name] || 0;
@@ -3339,9 +3365,9 @@ updateMeta();
 (async () => {
   if (initSupabase()) {
     await loadEmployees();
-    renderRoster();
     await loadHistory();   // load first so checkAuthorization sees the leaderboard
     await autoSeedNewHires();
+    renderRoster();
     await initAuth();
     await initVoteModule();
   } else {
