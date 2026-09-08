@@ -2147,9 +2147,11 @@ function isNamedNewHire(name) {
   );
 }
 
-// n = real + initial. Named new hires get a fixed starting offset;
-// all other roster members are veterans with initial 0.
+// n = real + initial. Prefer DB seed_count so new hires can be added without
+// code changes; NEW_HIRE_INITIAL remains as a legacy fallback.
 function getInitialCount(name) {
+  const seed = getSeedCount(name);
+  if (seed != null) return seed;
   const key = String(name || '').toLowerCase();
   if (Object.prototype.hasOwnProperty.call(NEW_HIRE_INITIAL, key)) {
     return NEW_HIRE_INITIAL[key];
