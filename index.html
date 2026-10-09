@@ -2818,16 +2818,20 @@ function renderLeaderboard() {
   });
 }
 
+function isCalibrationDraw(entry) {
+  return entry.drawn_by_name === '系统校准';
+}
+
 function renderLastDraw() {
   const namesEl = $('ldNames');
   const metaEl = $('ldMeta');
   if (!namesEl || !metaEl) return;
-  if (!history || history.length === 0) {
+  const last = history.find(entry => !isCalibrationDraw(entry));
+  if (!last) {
     namesEl.innerHTML = '<span class="ld-empty">还没有记录，点上面的按钮开签吧</span>';
     metaEl.textContent = '—';
     return;
   }
-  const last = history[0];
   const d = new Date(last.timestamp);
   const date = `${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   metaEl.innerHTML = last.drawn_by_avatar
@@ -2841,12 +2845,13 @@ function renderHistory() {
   renderLastDraw();
   renderRoster();
   const el = $('history');
-  $('historyCount').textContent = history.length;
-  if (history.length === 0) {
+  const visibleHistory = history.filter(entry => !isCalibrationDraw(entry));
+  $('historyCount').textContent = visibleHistory.length;
+  if (visibleHistory.length === 0) {
     el.innerHTML = '<div class="empty">还没有抽签记录</div>';
     return;
   }
-  el.innerHTML = history.slice(0, 20).map(entry => {
+  el.innerHTML = visibleHistory.slice(0, 20).map(entry => {
     const d = new Date(entry.timestamp);
     const by = entry.drawn_by_name
       ? `<div class="h-by">${entry.drawn_by_avatar ? `<img src="${escapeHtml(entry.drawn_by_avatar)}" alt="">` : ''}<span>${escapeHtml(entry.drawn_by_name)} 摇的</span></div>`
