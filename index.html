@@ -573,6 +573,16 @@
     transition: border 0.15s;
   }
   .ctrl input[type="number"]:focus { border-color: var(--accent); }
+  .ctrl select {
+    width: 9rem;
+    max-width: 100%;
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    padding: 4px 6px;
+    background: var(--surface);
+    color: var(--ink-2);
+    font: inherit;
+  }
   .ctrl .switch {
     display: inline-flex;
     align-items: center;
@@ -1019,6 +1029,13 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     font-weight: 500;
+  }
+  .emp-floor {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--ink-mute);
+    font-size: 11px;
   }
   .emp-tag {
     display: inline-block;
@@ -1738,6 +1755,12 @@
       </div>
 
       <div class="controls">
+        <label class="ctrl">
+          <span>楼层</span>
+          <select id="drawFloor">
+            <option value="">选择楼层</option>
+          </select>
+        </label>
         <div class="ctrl">
           <span>人数</span>
           <input type="number" id="pickCount" value="4" min="1" max="50">
@@ -1830,7 +1853,7 @@
     <div class="section-body">
       <div class="section-body-inner">
         <div class="roster" id="rosterChips"></div>
-        <div class="hint">名单维护在 Supabase Studio → <code>employees</code> 表，修改后刷新即生效</div>
+        <div class="hint">名单与楼层在 Supabase Studio → <code>employees</code> 表维护，修改后刷新即生效</div>
       </div>
     </div>
   </section>
@@ -1909,6 +1932,8 @@ let currentUser = null;
 let isAuthorized = false;
 let authReason = '';   // 'whitelist' | 'top' | ''
 const unlockedIndices = new Set();
+let currentDraw = null;
+let drawBusy = false;
 
 const $ = id => document.getElementById(id);
 
@@ -2020,6 +2045,7 @@ async function checkAuthorization() {
 }
 
 function updateAuthGate() {
+  if (drawBusy) return;
   const btn = $('drawBtn');
   const label = $('drawLabel');
   const dice = btn.querySelector('.dice');
@@ -2101,6 +2127,7 @@ async function loadEmployees() {
   // Try with all optional columns; fall back progressively if a column
   // doesn't exist yet (so the app still works pre-migration).
   const selects = [
+    'name, email, can_draw, leave_until, seed_count, floor',
     'name, email, can_draw, leave_until, seed_count',
     'name, email, can_draw, leave_until',
     'name, email, can_draw',
@@ -2108,7 +2135,9 @@ async function loadEmployees() {
   let data, error;
   for (const sel of selects) {
     const r = await sb.from('employees').select(sel).order('id');
-    if (!r.error || r.error.code !== '42703') { data = r.data; error = r.error; break; }
+    data = r.data;
+    error = r.error;
+    if (!error || error.code !== '42703') break;
   }
   if (error) {
     console.error(error);
@@ -2121,11 +2150,32 @@ async function loadEmployees() {
     can_draw: !!r.can_draw,
     leave_until: r.leave_until || null,
     seed_count: r.seed_count ?? null,
+    floor: (r.floor || '').trim(),
   }));
   // Draw pool excludes anyone currently on leave.
   employees = _rawEmployees
     .filter(e => leaveStatus(e.leave_until) !== 'on_leave')
     .map(e => e.name);
+  renderFloorOptions();
+}
+
+function renderFloorOptions() {
+  const select = $('drawFloor');
+  const floors = [...new Set(_rawEmployees.map(e => e.floor).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  select.replaceChildren(new Option(floors.length ? '选择楼层' : '暂无楼层', ''),
+    ...floors.map(floor => new Option(floor, floor)));
+}
+
+function getFloorPool(floor) {
+  if (!floor) return [];
+  return _rawEmployees
+    .filter(e => e.floor === floor && leaveStatus(e.leave_until) !== 'on_leave')
+    .map(e => e.name);
+}
+
+function getPickCount() {
+  return Math.min(50, Math.max(1, parseInt($('pickCount').value, 10) || 4));
 }
 
 function getSeedCount(name) {
@@ -2246,8 +2296,10 @@ function renderRoster() {
     return;
   }
   const counts = getDrawCounts();
-  const pickN = parseInt($('pickCount').value) || 4;
-  const probs = computeDrawProbs(employees, counts, pickN);
+  const floor = $('drawFloor').value;
+  const pool = getFloorPool(floor);
+  const pickN = getPickCount();
+  const probs = pickN <= pool.length ? computeDrawProbs(pool, counts, pickN) : {};
 
   const onLeave = _rawEmployees.filter(e => leaveStatus(e.leave_until) === 'on_leave');
 
@@ -2261,7 +2313,7 @@ function renderRoster() {
       // "新" only on the named new-hire list.
       protected: isNamedNewHire(name),
       grace,                              // recently returned, getting baseline lift
-      prob: probs[name] || 0,
+      prob: Object.hasOwn(probs, name) ? probs[name] : null,
       onLeave: false,
     };
   });
@@ -2276,6 +2328,7 @@ function renderRoster() {
   }));
 
   const rows = [...activeRows, ...leaveRows];
+  const floorsByName = new Map(_rawEmployees.map(e => [e.name, e.floor]));
   const maxProb = Math.max(activeRows[0]?.prob || 0, 0.0001);
   el.className = 'roster emp-grid';
   el.innerHTML = rows.map(r => {
@@ -2291,9 +2344,9 @@ function renderRoster() {
     const rowCls = r.onLeave ? 'emp-row is-leave' : 'emp-row';
     return `
     <div class="${rowCls}">
-      <span class="emp-name">${escapeHtml(r.name)}${nameSuffix}</span>
+      <span class="emp-name">${escapeHtml(r.name)}${nameSuffix}<span class="emp-floor">${escapeHtml(floorsByName.get(r.name) || '未分配')}</span></span>
       <span class="emp-bar"><span class="emp-fill" style="--p:${(r.prob / maxProb * 100).toFixed(1)}%"></span></span>
-      <span class="emp-prob">${r.onLeave ? '—' : (r.prob * 100).toFixed(1) + '%'}</span>
+      <span class="emp-prob">${r.onLeave || r.prob == null ? '—' : (r.prob * 100).toFixed(1) + '%'}</span>
       <span class="emp-count">${r.count} 次</span>
     </div>
   `;}).join('');
@@ -2446,6 +2499,7 @@ function renderEmptyTickets(n) {
 }
 
 function draw() {
+  if (drawBusy) return;
   if (!currentUser) {
     showToast('请先用 Google 登录');
     signIn();
@@ -2456,46 +2510,74 @@ function draw() {
     return;
   }
 
+  const floor = $('drawFloor').value;
+  if (!floor) {
+    showToast($('drawFloor').options.length > 1 ? '请先选择楼层' : '请先为员工设置楼层');
+    return;
+  }
+  const floorPool = getFloorPool(floor);
+  const counts = getDrawCounts();
+
   // reroll mode: only re-roll unlocked cards
   if (unlockedIndices.size > 0) {
-    const entry = history[0];
-    if (!entry) { unlockedIndices.clear(); updateDrawLabel(); return; }
+    const entry = history.find(row => row.id === currentDraw?.id);
+    if (!entry || currentDraw.floor !== floor ||
+        JSON.stringify(entry.names) !== JSON.stringify(currentDraw.names)) {
+      showToast('本次结果已变更，请重新抽签');
+      resetDrawTickets();
+      return;
+    }
     const kept = entry.names.filter((_, i) => !unlockedIndices.has(i));
-    const pool = employees.filter(n => !kept.includes(n));
+    if (kept.some(name => !floorPool.includes(name))) {
+      showToast('请解锁不在本楼层候选名单中的员工');
+      return;
+    }
+    const pool = floorPool.filter(n => !kept.includes(n));
     if (pool.length < unlockedIndices.size) {
       showToast(`可换人选不够（需要 ${unlockedIndices.size} 人，剩 ${pool.length}）`);
       return;
     }
-    const counts = getDrawCounts();
     const shuffled = weightedShuffle(pool, counts);
     const replacements = shuffled.slice(0, unlockedIndices.size);
-    animateReroll(replacements);
+    animateReroll(entry, replacements, pool);
     return;
   }
 
-  if (employees.length === 0) {
-    showToast('请先在下方添加员工');
-    $('rosterSection').classList.add('open');
-    return;
-  }
-  const n = parseInt($('pickCount').value) || 4;
-  if (n > employees.length) {
-    showToast(`员工只有 ${employees.length} 人，不够抽 ${n} 人`);
+  const n = getPickCount();
+  if (n > floorPool.length) {
+    showToast(`${floor} 只有 ${floorPool.length} 人可抽，不够抽 ${n} 人`);
     return;
   }
   localStorage.setItem(KEYS.pickCount, n);
 
-  const counts = getDrawCounts();
-  const shuffled = weightedShuffle([...employees], counts);
+  const shuffled = weightedShuffle(floorPool, counts);
   const winners = shuffled.slice(0, n);
 
-  animateDraw(winners);
+  animateDraw(winners, floorPool, floor);
 }
 
-function animateDraw(winners) {
+function setDrawBusy(busy) {
+  drawBusy = busy;
+  $('drawBtn').disabled = busy;
+  $('drawFloor').disabled = busy;
+  $('pickCount').disabled = busy;
+  if (!busy) {
+    updateAuthGate();
+    if (currentUser && isAuthorized) updateDrawLabel();
+  }
+}
+
+function resetDrawTickets() {
+  currentDraw = null;
   unlockedIndices.clear();
-  const btn = $('drawBtn');
-  btn.disabled = true;
+  renderEmptyTickets(getPickCount());
+  $('copyBtn').style.display = 'none';
+  if (currentUser && isAuthorized) updateDrawLabel();
+}
+
+function animateDraw(winners, pool, floor) {
+  unlockedIndices.clear();
+  setDrawBusy(true);
   $('drawLabel').textContent = '抽签中…';
   $('copyBtn').style.display = 'none';
 
@@ -2514,12 +2596,12 @@ function animateDraw(winners) {
   let tick = 0;
   const lockAt = [10, 14, 18, 22, 26]; // staggered lock times
 
-  const interval = setInterval(() => {
+  const interval = setInterval(async () => {
     cells.forEach((cell, i) => {
       const lockTick = lockAt[i] || lockAt[lockAt.length - 1];
       const nameEl = cell.querySelector('.name');
       if (tick < lockTick) {
-        nameEl.textContent = employees[Math.floor(Math.random() * employees.length)];
+        nameEl.textContent = pool[Math.floor(Math.random() * pool.length)];
         nameEl.classList.remove('flip');
         void nameEl.offsetWidth;
         nameEl.classList.add('flip');
@@ -2535,16 +2617,17 @@ function animateDraw(winners) {
       clearInterval(interval);
       w.classList.add('celebrating');
       setTimeout(() => w.classList.remove('celebrating'), 1200);
-      finalize(winners);
-      btn.disabled = false;
-      $('drawLabel').textContent = '再 抽 一 次';
+      try {
+        await finalize(winners, floor);
+      } finally {
+        setDrawBusy(false);
+      }
     }
   }, 70);
 }
 
-function animateReroll(replacements) {
-  const btn = $('drawBtn');
-  btn.disabled = true;
+function animateReroll(entry, replacements, pool) {
+  setDrawBusy(true);
   $('drawLabel').textContent = '重 摇 中…';
   $('copyBtn').style.display = 'none';
 
@@ -2561,13 +2644,13 @@ function animateReroll(replacements) {
 
   let tick = 0;
   const lockAt = [10, 14, 18, 22, 26];
-  const interval = setInterval(() => {
+  const interval = setInterval(async () => {
     unlockedArr.forEach((i, idx) => {
       const cell = cells[i];
       const nameEl = cell.querySelector('.name');
       const lockTick = lockAt[idx] || lockAt[lockAt.length - 1];
       if (tick < lockTick) {
-        nameEl.textContent = employees[Math.floor(Math.random() * employees.length)];
+        nameEl.textContent = pool[Math.floor(Math.random() * pool.length)];
         nameEl.classList.remove('flip');
         void nameEl.offsetWidth;
         nameEl.classList.add('flip');
@@ -2581,43 +2664,44 @@ function animateReroll(replacements) {
     tick++;
     if (tick > (lockAt[unlockedArr.length - 1] || lockAt[lockAt.length - 1])) {
       clearInterval(interval);
-      finalizeReroll(unlockedArr, replacements);
-      btn.disabled = false;
+      try {
+        await finalizeReroll(entry, unlockedArr, replacements);
+      } finally {
+        setDrawBusy(false);
+      }
     }
   }, 70);
 }
 
-async function finalizeReroll(indices, replacements) {
-  const entry = history[0];
-  if (!entry) { unlockedIndices.clear(); updateDrawLabel(); return; }
-
+async function finalizeReroll(entry, indices, replacements) {
   const newNames = [...entry.names];
   indices.forEach((idx, k) => { newNames[idx] = replacements[k]; });
-
-  // optimistic local
-  entry.names = newNames;
   unlockedIndices.clear();
-  $('copyBtn').style.display = 'inline-block';
-  renderHistory();
-  updateMeta();
-  updateDrawLabel();
-
-  if (!sb || !entry.id) {
-    showToast(`已替换 ${indices.length} 张（本地）`);
-    return;
-  }
-  const { error } = await sb
+  const { data, error } = await sb
     .from('draws')
     .update({ names: newNames })
-    .eq('id', entry.id);
+    .eq('id', entry.id)
+    .eq('names', JSON.stringify(entry.names))
+    .select('id')
+    .maybeSingle();
   if (error) {
     showToast('云端更新失败：' + error.message);
+    resetDrawTickets();
+  } else if (!data) {
+    showToast('记录已变更或无更新权限，请重新抽签');
+    resetDrawTickets();
   } else {
+    currentDraw.names = newNames;
+    const saved = history.find(row => row.id === entry.id);
+    if (saved) saved.names = newNames;
+    $('copyBtn').style.display = 'inline-block';
+    renderHistory();
     showToast(`已替换 ${indices.length} 张`);
   }
 }
 
 function toggleLock(index) {
+  if (drawBusy || !currentDraw) return;
   if (!currentUser) { showToast('请先登录'); signIn(); return; }
   if (!isAuthorized) { showToast('账号未授权'); return; }
   const cells = document.querySelectorAll('#winners .ticket');
@@ -2641,7 +2725,7 @@ function updateDrawLabel() {
   const label = $('drawLabel');
   if (unlockedIndices.size > 0) {
     label.textContent = `重 摇 ${unlockedIndices.size} 张`;
-  } else if (history.length > 0) {
+  } else if (currentDraw) {
     label.textContent = '再 抽 一 次';
   } else {
     label.textContent = '开 始 抽 签';
@@ -2653,28 +2737,11 @@ function stampLabel() {
   return `${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')}`;
 }
 
-async function finalize(winners) {
-  $('copyBtn').style.display = 'inline-block';
-
+async function finalize(winners, floor) {
   const meta = currentUser?.user_metadata || {};
   const drawnByName = meta.full_name || meta.name || currentUser?.email || null;
   const drawnByAvatar = meta.avatar_url || null;
 
-  // optimistic insert into local list
-  const now = new Date();
-  history.unshift({
-    names: winners,
-    original_names: winners.slice(),
-    timestamp: now.getTime(),
-    drawn_by_name: drawnByName,
-    drawn_by_avatar: drawnByAvatar,
-    pending: true,
-  });
-  history = history.slice(0, 1000);
-  renderHistory();
-  updateMeta();
-
-  if (!sb) { showToast('未连接 Supabase，本次未同步'); return; }
   const { data, error } = await sb
     .from('draws')
     .insert({
@@ -2687,11 +2754,11 @@ async function finalize(winners) {
     .single();
   if (error) {
     showToast('保存到云端失败：' + error.message);
-    history.shift();
-    renderHistory();
+    resetDrawTickets();
     return;
   }
-  history[0] = {
+  currentDraw = { id: data.id, floor, names: data.names };
+  const entry = {
     id: data.id,
     names: data.names,
     original_names: data.original_names || data.names,
@@ -2699,12 +2766,16 @@ async function finalize(winners) {
     drawn_by_name: data.drawn_by_name,
     drawn_by_avatar: data.drawn_by_avatar,
   };
+  history = [entry, ...history.filter(row => row.id !== entry.id)]
+    .sort((a, b) => b.timestamp - a.timestamp || b.id - a.id)
+    .slice(0, 1000);
+  $('copyBtn').style.display = 'inline-block';
   renderHistory();
 }
 
 function updateMeta() {
-  $('metaPickN').textContent = $('pickCount').value;
-  $('metaTotal').textContent = employees.length;
+  $('metaPickN').textContent = getPickCount();
+  $('metaTotal').textContent = getFloorPool($('drawFloor').value).length;
 }
 
 function pad(n) { return String(n).padStart(2, '0'); }
@@ -3365,7 +3436,8 @@ function bindTabs() {
 
 /* ===== Wire up ===== */
 load();
-renderEmptyTickets(parseInt($('pickCount').value) || 4);
+renderEmptyTickets(getPickCount());
+renderFloorOptions();
 setDateMast();
 updateMeta();
 
@@ -3389,8 +3461,14 @@ updateMeta();
 
 $('drawBtn').addEventListener('click', draw);
 $('copyBtn').addEventListener('click', copyWinners);
+$('drawFloor').addEventListener('change', () => {
+  resetDrawTickets();
+  updateMeta();
+  renderRoster();
+});
 $('pickCount').addEventListener('change', () => {
-  const n = parseInt($('pickCount').value) || 4;
+  const n = getPickCount();
+  $('pickCount').value = n;
   if (!document.querySelector('#winners .ticket.locked')) {
     renderEmptyTickets(n);
   }
