@@ -441,8 +441,8 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: var(--s-3);
-    padding-top: var(--s-3);
+    gap: var(--s-2);
+    padding-top: var(--s-4);
   }
   .floor-overview {
     width: 100%;
@@ -572,15 +572,21 @@
     font-family: inherit;
   }
 
-  /* ========== Quick Controls (under hero) ========== */
-  .controls {
+  .draw-actions,
+  .draw-summary {
     display: flex;
+    align-items: center;
     justify-content: center;
-    gap: var(--s-2);
-    margin-top: var(--s-4);
-    padding-top: var(--s-4);
-    border-top: 1px dashed var(--line);
+    gap: var(--s-2) var(--s-4);
     flex-wrap: wrap;
+    max-width: 100%;
+  }
+  .draw-actions .draw-btn {
+    justify-content: center;
+    min-width: 196px;
+    min-height: 48px;
+    padding-inline: var(--s-5);
+    max-width: 100%;
   }
   .ctrl {
     display: inline-flex;
@@ -591,6 +597,7 @@
   }
   .ctrl input[type="number"] {
     width: 48px;
+    min-height: 44px;
     border: 1px solid var(--line);
     background: var(--surface);
     border-radius: var(--r-sm);
@@ -1770,30 +1777,32 @@
   <div class="main-grid">
     <div class="main-left">
     <section class="hero">
-      <table class="floor-overview" aria-label="楼层抽签概率">
+      <table class="floor-overview" aria-label="楼层抽签概率" hidden>
         <thead><tr><th scope="col">楼层</th><th scope="col">在岗可抽</th><th scope="col">中签概率</th></tr></thead>
         <tbody id="floorOverview"></tbody>
       </table>
       <div class="draw-zone">
-        <button class="draw-btn" id="drawBtn">
-          <span class="dice">🎲</span>
-          <span id="drawLabel">开 始 抽 签</span>
-        </button>
-        <div class="draw-meta">
-          <span class="num" id="metaTotal">0</span> 层参与
-          <span class="dot">·</span>
-          抽 <span class="num" id="metaPickN">4</span> 人
+        <div class="draw-actions">
+          <label class="ctrl">
+            <span>人数</span>
+            <input type="number" id="pickCount" value="4" min="1" max="50">
+          </label>
+          <button class="draw-btn" id="drawBtn">
+            <span class="dice">🎲</span>
+            <span id="drawLabel">开 始 抽 签</span>
+          </button>
+        </div>
+        <div class="draw-summary">
+          <div class="draw-meta">
+            <span class="num" id="metaTotal">0</span> 层参与
+            <span class="dot">·</span>
+            抽 <span class="num" id="metaPickN">4</span> 人
+          </div>
+          <button class="btn btn-ghost" id="copyBtn" style="display:none;">复制结果</button>
         </div>
         <div class="draw-unauth" id="drawUnauth" style="display:none;"></div>
       </div>
 
-      <div class="controls">
-        <label class="ctrl">
-          <span>人数</span>
-          <input type="number" id="pickCount" value="4" min="1" max="50">
-        </label>
-        <button class="btn btn-ghost" id="copyBtn" style="display:none;">复制结果</button>
-      </div>
       <p class="draw-result-floor" id="drawResultFloor" role="status"></p>
       <div class="winners cols-4" id="winners">
         <!-- tickets injected here -->
