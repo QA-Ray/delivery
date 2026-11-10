@@ -1022,7 +1022,11 @@
     background: var(--surface-soft);
     border-radius: var(--r-md);
     min-height: 44px;
+    max-height: min(420px, 55vh);
+    overflow-y: auto;
+    scrollbar-width: thin;
   }
+  .roster:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
   .roster.emp-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -1879,7 +1883,7 @@
     </div>
     <div class="section-body">
       <div class="section-body-inner">
-        <div class="roster" id="rosterChips"></div>
+        <div class="roster" id="rosterChips" role="region" aria-label="员工名单与抽中概率" tabindex="-1"></div>
         <div class="hint">名单与楼层在 Supabase Studio → <code>employees</code> 表维护，修改后刷新即生效</div>
       </div>
     </div>
@@ -2340,11 +2344,13 @@ function load() {
 }
 
 function toggleSection(id) {
-  $(id).classList.toggle('open');
+  const open = $(id).classList.toggle('open');
+  if (id === 'rosterSection') $('rosterChips').tabIndex = open ? 0 : -1;
 }
 
 function renderRoster() {
   const el = $('rosterChips');
+  const scrollTop = el.scrollTop;
   $('rosterCount').textContent = _rawEmployees.length;
   if (_rawEmployees.length === 0) {
     el.className = 'roster';
@@ -2409,6 +2415,7 @@ function renderRoster() {
       <span class="emp-count">${r.count} 次</span>
     </div>
   `;}).join('');
+  el.scrollTop = scrollTop;
   // animate bars from 0 → target
   requestAnimationFrame(() => {
     el.querySelectorAll('.emp-fill').forEach(fill => {
