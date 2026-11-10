@@ -444,6 +444,35 @@
     gap: var(--s-3);
     padding-top: var(--s-3);
   }
+  .floor-overview {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: var(--s-2);
+    font-size: var(--t-sm);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .floor-overview :is(th, td) {
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--line);
+  }
+  .floor-overview th:first-child { text-align: left; overflow-wrap: anywhere; }
+  .floor-overview thead { color: var(--ink-2); }
+  .floor-overview tbody td:last-child { color: var(--leaf); font-weight: 600; }
+  .floor-overview .floor-ineligible td:last-child { color: var(--ink-mute); font-weight: 400; }
+  .draw-result-floor {
+    margin: var(--s-4) 0 0;
+    color: var(--leaf);
+    font-weight: 600;
+    text-align: center;
+    overflow-wrap: anywhere;
+  }
+  .draw-result-floor:empty { display: none; }
+  .hero .winners { margin-bottom: 0; }
+  .floor-audit { margin-top: 6px; color: var(--ink-2); font-size: var(--t-sm); }
+  .floor-audit summary { cursor: pointer; overflow-wrap: anywhere; }
+  .floor-audit ul { margin: 4px 0 0; padding-left: 1.2em; }
+  .floor-audit li { overflow-wrap: anywhere; }
   .draw-btn {
     appearance: none;
     border: none;
@@ -573,16 +602,6 @@
     transition: border 0.15s;
   }
   .ctrl input[type="number"]:focus { border-color: var(--accent); }
-  .ctrl select {
-    width: 9rem;
-    max-width: 100%;
-    border: 1px solid var(--line);
-    border-radius: var(--r-sm);
-    padding: 4px 6px;
-    background: var(--surface);
-    color: var(--ink-2);
-    font: inherit;
-  }
   .ctrl .switch {
     display: inline-flex;
     align-items: center;
@@ -1238,6 +1257,16 @@
     z-index: 20;
     animation: enter 0.55s var(--ease-out) 0.3s both;
   }
+  @media (max-width: 480px) {
+    .auth-bar {
+      position: relative;
+      inset: auto;
+      display: flex;
+      justify-content: flex-end;
+      padding: var(--s-3) var(--s-5) 0;
+    }
+    .masthead h1 { font-size: 36px; letter-spacing: 0; }
+  }
   .auth-btn {
     appearance: none;
     border: 1px solid var(--line);
@@ -1737,17 +1766,17 @@
   <div class="main-grid">
     <div class="main-left">
     <section class="hero">
-      <div class="winners cols-4" id="winners">
-        <!-- tickets injected here -->
-      </div>
-
+      <table class="floor-overview" aria-label="楼层抽签概率">
+        <thead><tr><th scope="col">楼层</th><th scope="col">在岗可抽</th><th scope="col">中签概率</th></tr></thead>
+        <tbody id="floorOverview"></tbody>
+      </table>
       <div class="draw-zone">
         <button class="draw-btn" id="drawBtn">
           <span class="dice">🎲</span>
           <span id="drawLabel">开 始 抽 签</span>
         </button>
         <div class="draw-meta">
-          共 <span class="num" id="metaTotal">0</span> 人
+          <span class="num" id="metaTotal">0</span> 层参与
           <span class="dot">·</span>
           抽 <span class="num" id="metaPickN">4</span> 人
         </div>
@@ -1756,16 +1785,14 @@
 
       <div class="controls">
         <label class="ctrl">
-          <span>楼层</span>
-          <select id="drawFloor">
-            <option value="">选择楼层</option>
-          </select>
-        </label>
-        <div class="ctrl">
           <span>人数</span>
           <input type="number" id="pickCount" value="4" min="1" max="50">
-        </div>
+        </label>
         <button class="btn btn-ghost" id="copyBtn" style="display:none;">复制结果</button>
+      </div>
+      <p class="draw-result-floor" id="drawResultFloor" role="status"></p>
+      <div class="winners cols-4" id="winners">
+        <!-- tickets injected here -->
       </div>
     </section>
 
@@ -1805,14 +1832,14 @@
             <span class="guide-icon">🎲</span>
             <div class="guide-body">
               <div class="guide-title">怎么抽</div>
-              <div class="guide-desc">登录后点 <kbd>开始抽签</kbd>，默认抽 4 人。每人权重 = <code>exp(-1.5 × n)</code>，其中 <code>n = 真实次数 + 初始次数</code>。老员工初始次数 = 0；新人添加到名单时，按当时团队有效次数中位数写入 <code>seed_count</code> 作为初始次数，和大家同一起跑线——系统跑 10 年老员工上万次，新人也不用去补那上万次真实抽签。每月新人各自冻自己的初始值。挂「<span style="display:inline-block;padding:0 5px;background:var(--leaf-soft);color:var(--leaf);border-radius:8px;font-size:10px;font-weight:600;">新</span>」标记。名单上的百分比 = 本次按下抽签会被选中的概率（模拟法 1000 次跑出来的经验值）。</div>
+              <div class="guide-desc">楼层按在岗可抽人数加权，人数不足的楼层不参与。抽中楼层后，个人权重 = <code>exp(-1.5 × n)</code>，其中 <code>n = 真实次数 + 初始次数</code>，复工宽限仍生效。员工名单上的概率已包含楼层中签概率。每轮应承担名额 = 楼层中签概率 × 本轮人数，名额记录暂不影响抽签。</div>
             </div>
           </div>
           <div class="guide-item">
             <span class="guide-icon">🔒</span>
             <div class="guide-body">
               <div class="guide-title">有人请假怎么换</div>
-              <div class="guide-desc">抽完后每张牌右上角有 🔒。点一下变 🔓 表示该位置要重摇，主按钮文案会变成 <kbd>重 摇 N 张</kbd>。只换被解锁的位置，其他保留。原名会保留在历史里（红字标注）。</div>
+              <div class="guide-desc">重摇只换被解锁的位置，楼层和名额不变。原名会保留在历史里（红字标注）。</div>
             </div>
           </div>
           <div class="guide-item">
@@ -1934,6 +1961,8 @@ let authReason = '';   // 'whitelist' | 'top' | ''
 const unlockedIndices = new Set();
 let currentDraw = null;
 let drawBusy = false;
+let drawAllocationReady = false;
+const DRAW_COLUMNS = 'id, created_at, names, original_names, drawn_by_name, drawn_by_avatar';
 
 const $ = id => document.getElementById(id);
 
@@ -2156,15 +2185,39 @@ async function loadEmployees() {
   employees = _rawEmployees
     .filter(e => leaveStatus(e.leave_until) !== 'on_leave')
     .map(e => e.name);
-  renderFloorOptions();
 }
 
-function renderFloorOptions() {
-  const select = $('drawFloor');
-  const floors = [...new Set(_rawEmployees.map(e => e.floor).filter(Boolean))]
-    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-  select.replaceChildren(new Option(floors.length ? '选择楼层' : '暂无楼层', ''),
-    ...floors.map(floor => new Option(floor, floor)));
+function getFloorPlan(pickN) {
+  const pools = new Map();
+  for (const employee of _rawEmployees) {
+    if (!employee.floor) continue;
+    if (!pools.has(employee.floor)) pools.set(employee.floor, []);
+    if (leaveStatus(employee.leave_until) !== 'on_leave') {
+      pools.get(employee.floor).push(employee.name);
+    }
+  }
+  const rows = [...pools].sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }));
+  const total = rows.reduce((sum, [, pool]) => sum + (pool.length >= pickN ? pool.length : 0), 0);
+  return rows.map(([floor, pool]) => ({
+    floor,
+    pool,
+    chance: pool.length >= pickN ? pool.length / total : 0,
+  }));
+}
+
+function chooseDrawFloor(plan, random = Math.random) {
+  const eligible = plan.filter(row => row.chance > 0);
+  let ticket = random() * eligible.reduce((sum, row) => sum + row.pool.length, 0);
+  return eligible.find(row => (ticket -= row.pool.length) < 0);
+}
+
+function makeFloorAllocation(plan, chosenFloor, pickN) {
+  return plan.map(({floor, pool, chance}) => ({
+    floor,
+    eligible_count: pool.length,
+    expected_slots: chance * pickN,
+    actual_slots: floor === chosenFloor ? pickN : 0,
+  }));
 }
 
 function getFloorPool(floor) {
@@ -2255,32 +2308,35 @@ function getLeaveUntil(name) {
 
 async function loadHistory() {
   if (!sb) return;
-  const { data, error } = await sb
-    .from('draws')
-    .select('id, created_at, names, original_names, drawn_by_name, drawn_by_avatar')
+  const query = columns => sb.from('draws').select(columns)
     .order('created_at', { ascending: false })
     .limit(1000);
+  let { data, error } = await query(DRAW_COLUMNS + ', floor_allocation');
+  drawAllocationReady = !error;
+  if (error?.code === '42703') ({ data, error } = await query(DRAW_COLUMNS));
   if (error) {
     console.error(error);
     showToast('读取历史失败：' + error.message);
     return;
   }
-  history = (data || []).map(r => ({
+  history = (data || []).map(drawEntry);
+}
+
+function drawEntry(r) {
+  return {
     id: r.id,
     names: r.names,
     original_names: r.original_names || r.names,
     timestamp: new Date(r.created_at).getTime(),
     drawn_by_name: r.drawn_by_name,
     drawn_by_avatar: r.drawn_by_avatar,
-  }));
+    floor_allocation: Array.isArray(r.floor_allocation) ? r.floor_allocation : null,
+  };
 }
 
 function load() {
   const pc = localStorage.getItem(KEYS.pickCount);
   if (pc) $('pickCount').value = pc;
-  $('pickCount').addEventListener('input', () => {
-    $('metaPickN').textContent = $('pickCount').value;
-  });
 }
 
 function toggleSection(id) {
@@ -2296,10 +2352,13 @@ function renderRoster() {
     return;
   }
   const counts = getDrawCounts();
-  const floor = $('drawFloor').value;
-  const pool = getFloorPool(floor);
   const pickN = getPickCount();
-  const probs = pickN <= pool.length ? computeDrawProbs(pool, counts, pickN) : {};
+  const probs = new Map();
+  for (const { pool, chance } of getFloorPlan(pickN)) {
+    if (!chance) continue;
+    const conditional = computeDrawProbs(pool, counts, pickN);
+    for (const name of pool) probs.set(name, chance * conditional[name]);
+  }
 
   const onLeave = _rawEmployees.filter(e => leaveStatus(e.leave_until) === 'on_leave');
 
@@ -2313,7 +2372,7 @@ function renderRoster() {
       // "新" only on the named new-hire list.
       protected: isNamedNewHire(name),
       grace,                              // recently returned, getting baseline lift
-      prob: Object.hasOwn(probs, name) ? probs[name] : null,
+      prob: probs.get(name) ?? null,
       onLeave: false,
     };
   });
@@ -2510,23 +2569,21 @@ function draw() {
     return;
   }
 
-  const floor = $('drawFloor').value;
-  if (!floor) {
-    showToast($('drawFloor').options.length > 1 ? '请先选择楼层' : '请先为员工设置楼层');
+  if (!drawAllocationReady) {
+    showToast('暂时无法保存楼层名额，请刷新或联系管理员');
     return;
   }
-  const floorPool = getFloorPool(floor);
   const counts = getDrawCounts();
 
   // reroll mode: only re-roll unlocked cards
   if (unlockedIndices.size > 0) {
     const entry = history.find(row => row.id === currentDraw?.id);
-    if (!entry || currentDraw.floor !== floor ||
-        JSON.stringify(entry.names) !== JSON.stringify(currentDraw.names)) {
+    if (!entry || JSON.stringify(entry.names) !== JSON.stringify(currentDraw.names)) {
       showToast('本次结果已变更，请重新抽签');
       resetDrawTickets();
       return;
     }
+    const floorPool = getFloorPool(currentDraw.floor);
     const kept = entry.names.filter((_, i) => !unlockedIndices.has(i));
     if (kept.some(name => !floorPool.includes(name))) {
       showToast('请解锁不在本楼层候选名单中的员工');
@@ -2544,22 +2601,23 @@ function draw() {
   }
 
   const n = getPickCount();
-  if (n > floorPool.length) {
-    showToast(`${floor} 只有 ${floorPool.length} 人可抽，不够抽 ${n} 人`);
+  const plan = getFloorPlan(n);
+  const chosen = chooseDrawFloor(plan);
+  if (!chosen) {
+    showToast(plan.length ? `没有楼层达到 ${n} 人，请减少人数` : '请先为员工设置楼层');
     return;
   }
   localStorage.setItem(KEYS.pickCount, n);
 
-  const shuffled = weightedShuffle(floorPool, counts);
+  const shuffled = weightedShuffle(chosen.pool, counts);
   const winners = shuffled.slice(0, n);
 
-  animateDraw(winners, floorPool, floor);
+  animateDraw(winners, chosen.pool, chosen.floor, makeFloorAllocation(plan, chosen.floor, n));
 }
 
 function setDrawBusy(busy) {
   drawBusy = busy;
   $('drawBtn').disabled = busy;
-  $('drawFloor').disabled = busy;
   $('pickCount').disabled = busy;
   if (!busy) {
     updateAuthGate();
@@ -2569,15 +2627,17 @@ function setDrawBusy(busy) {
 
 function resetDrawTickets() {
   currentDraw = null;
+  $('drawResultFloor').textContent = '';
   unlockedIndices.clear();
   renderEmptyTickets(getPickCount());
   $('copyBtn').style.display = 'none';
   if (currentUser && isAuthorized) updateDrawLabel();
 }
 
-function animateDraw(winners, pool, floor) {
+function animateDraw(winners, pool, floor, allocation) {
   unlockedIndices.clear();
   setDrawBusy(true);
+  $('drawResultFloor').textContent = '';
   $('drawLabel').textContent = '抽签中…';
   $('copyBtn').style.display = 'none';
 
@@ -2618,7 +2678,7 @@ function animateDraw(winners, pool, floor) {
       w.classList.add('celebrating');
       setTimeout(() => w.classList.remove('celebrating'), 1200);
       try {
-        await finalize(winners, floor);
+        await finalize(winners, floor, allocation);
       } finally {
         setDrawBusy(false);
       }
@@ -2737,7 +2797,7 @@ function stampLabel() {
   return `${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')}`;
 }
 
-async function finalize(winners, floor) {
+async function finalize(winners, floor, allocation) {
   const meta = currentUser?.user_metadata || {};
   const drawnByName = meta.full_name || meta.name || currentUser?.email || null;
   const drawnByAvatar = meta.avatar_url || null;
@@ -2749,8 +2809,9 @@ async function finalize(winners, floor) {
       original_names: winners,
       drawn_by_name: drawnByName,
       drawn_by_avatar: drawnByAvatar,
+      floor_allocation: allocation,
     })
-    .select('id, created_at, names, original_names, drawn_by_name, drawn_by_avatar')
+    .select(DRAW_COLUMNS + ', floor_allocation')
     .single();
   if (error) {
     showToast('保存到云端失败：' + error.message);
@@ -2758,24 +2819,27 @@ async function finalize(winners, floor) {
     return;
   }
   currentDraw = { id: data.id, floor, names: data.names };
-  const entry = {
-    id: data.id,
-    names: data.names,
-    original_names: data.original_names || data.names,
-    timestamp: new Date(data.created_at).getTime(),
-    drawn_by_name: data.drawn_by_name,
-    drawn_by_avatar: data.drawn_by_avatar,
-  };
+  const entry = drawEntry(data);
   history = [entry, ...history.filter(row => row.id !== entry.id)]
     .sort((a, b) => b.timestamp - a.timestamp || b.id - a.id)
     .slice(0, 1000);
   $('copyBtn').style.display = 'inline-block';
+  $('drawResultFloor').textContent = `中签楼层：${floor}`;
   renderHistory();
 }
 
 function updateMeta() {
-  $('metaPickN').textContent = getPickCount();
-  $('metaTotal').textContent = getFloorPool($('drawFloor').value).length;
+  const pickN = getPickCount();
+  const plan = getFloorPlan(pickN);
+  $('metaPickN').textContent = pickN;
+  $('metaTotal').textContent = plan.filter(row => row.chance > 0).length;
+  $('floorOverview').innerHTML = plan.length ? plan.map(({floor, pool, chance}) => `
+    <tr${chance ? '' : ' class="floor-ineligible"'}>
+      <th scope="row">${escapeHtml(floor)}</th>
+      <td>${pool.length} 人</td>
+      <td>${chance ? (chance * 100).toFixed(1) + '%' : '人数不足'}</td>
+    </tr>
+  `).join('') : '<tr><td colspan="3">暂无楼层</td></tr>';
 }
 
 function pad(n) { return String(n).padStart(2, '0'); }
@@ -2784,7 +2848,7 @@ function copyWinners() {
   const cells = document.querySelectorAll('#winners .ticket.locked .name');
   if (cells.length === 0) return;
   const names = Array.from(cells).map(c => c.textContent).join('、');
-  const text = `今日取饭：${names}`;
+  const text = currentDraw ? `今日取饭（${currentDraw.floor}）：${names}` : `今日取饭：${names}`;
   navigator.clipboard.writeText(text).then(() => showToast('已复制到剪贴板'));
 }
 
@@ -2893,6 +2957,18 @@ function isCalibrationDraw(entry) {
   return entry.drawn_by_name === '系统校准';
 }
 
+function getRecordedFloor(entry) {
+  return entry.floor_allocation?.find(row => row.actual_slots > 0)?.floor;
+}
+
+function renderFloorAudit(entry) {
+  const floor = getRecordedFloor(entry);
+  if (!floor) return '';
+  const rows = entry.floor_allocation.map(row =>
+    `<li>${escapeHtml(row.floor)}：应承担 ${row.expected_slots.toFixed(2)} · 实际 ${row.actual_slots}</li>`);
+  return `<details class="floor-audit"><summary>${escapeHtml(floor)} 中签 · 楼层名额</summary><ul>${rows.join('')}</ul></details>`;
+}
+
 function renderLastDraw() {
   const namesEl = $('ldNames');
   const metaEl = $('ldMeta');
@@ -2904,7 +2980,8 @@ function renderLastDraw() {
     return;
   }
   const d = new Date(last.timestamp);
-  const date = `${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const floor = getRecordedFloor(last);
+  const date = `${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}${floor ? ' · ' + escapeHtml(floor) : ''}`;
   metaEl.innerHTML = last.drawn_by_avatar
     ? `<img src="${escapeHtml(last.drawn_by_avatar)}" alt=""> ${escapeHtml(last.drawn_by_name || '匿名')} · ${date}`
     : `${escapeHtml(last.drawn_by_name || '匿名')} · ${date}`;
@@ -2939,6 +3016,7 @@ function renderHistory() {
         <div>
           <div class="h-names">${namesHtml}</div>
           ${by}
+          ${renderFloorAudit(entry)}
         </div>
       </div>
     `;
@@ -3437,7 +3515,6 @@ function bindTabs() {
 /* ===== Wire up ===== */
 load();
 renderEmptyTickets(getPickCount());
-renderFloorOptions();
 setDateMast();
 updateMeta();
 
@@ -3461,8 +3538,7 @@ updateMeta();
 
 $('drawBtn').addEventListener('click', draw);
 $('copyBtn').addEventListener('click', copyWinners);
-$('drawFloor').addEventListener('change', () => {
-  resetDrawTickets();
+$('pickCount').addEventListener('input', () => {
   updateMeta();
   renderRoster();
 });
@@ -3473,7 +3549,7 @@ $('pickCount').addEventListener('change', () => {
     renderEmptyTickets(n);
   }
   updateMeta();
-  renderRoster();    // probabilities depend on pickN under tier-priority
+  renderRoster();
 });
 </script>
 </body>
